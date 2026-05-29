@@ -1,10 +1,3 @@
-"""
-Chama models for Sacco Bridge.
-
-Manages informal savings groups, member roles, contributions,
-loans, meetings, and group settings.
-"""
-
 import uuid
 from decimal import Decimal
 from django.db import models
