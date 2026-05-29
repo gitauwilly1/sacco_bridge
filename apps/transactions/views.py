@@ -1,7 +1,3 @@
-"""
-API views for the Transactions application.
-"""
-
 import logging
 from django.db import transaction as db_transaction
 from django.utils import timezone
@@ -36,7 +32,6 @@ logger = logging.getLogger(__name__)
     retrieve=extend_schema(tags=['Settlements'], summary='Get settlement details'),
 )
 class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for viewing settlement intents."""
 
     serializer_class = SettlementIntentSerializer
     permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
@@ -53,7 +48,6 @@ class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=True, methods=['get'])
     def timeline(self, request, pk=None):
-        """Get human-readable settlement timeline."""
         intent = self.get_object()
         timeline = SettlementTimelineSerializer.build_timeline(intent)
         return Response({
@@ -63,7 +57,6 @@ class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['get'])
     def events(self, request, pk=None):
-        """Get all settlement events for audit trail."""
         intent = self.get_object()
         events = intent.events.order_by('timestamp')
         from apps.transactions.serializers import SettlementEventSerializer
@@ -75,7 +68,6 @@ class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['get'])
     def ledger(self, request, pk=None):
-        """Get ledger entries for a completed settlement."""
         intent = self.get_object()
 
         if intent.state != SettlementState.SETTLED:
@@ -100,7 +92,6 @@ class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
     retrieve=extend_schema(tags=['Disputes'], summary='Get dispute details'),
 )
 class DisputeViewSet(viewsets.ModelViewSet):
-    """ViewSet for managing disputes."""
 
     serializer_class = DisputeRecordSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -119,7 +110,6 @@ class DisputeViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def resolve(self, request, pk=None):
-        """Resolve a dispute (platform staff only)."""
         if not IsPlatformStaff().has_permission(request, None):
             raise PermissionDeniedError()
 
@@ -190,7 +180,6 @@ class DisputeViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def add_event(self, request, pk=None):
-        """Add an event to a dispute (platform staff only)."""
         if not IsPlatformStaff().has_permission(request, None):
             raise PermissionDeniedError()
 
@@ -216,7 +205,6 @@ class DisputeViewSet(viewsets.ModelViewSet):
     list=extend_schema(tags=['Ledger'], summary='List my ledger entries'),
 )
 class LedgerViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for viewing personal ledger entries."""
 
     serializer_class = LedgerEntrySerializer
     permission_classes = [permissions.IsAuthenticated]
