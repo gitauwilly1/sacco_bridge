@@ -10,7 +10,7 @@ from apps.core.validators import validate_positive_amount, validate_share_quanti
 
 
 class SettlementState(models.TextChoices):
-    
+
     MATCH_PROPOSED = 'MATCH_PROPOSED', _('Match Proposed')
     INTENT_LOCKED = 'INTENT_LOCKED', _('Intent Locked')
     BUYER_DEBIT_INITIATED = 'BUYER_DEBIT_INITIATED', _('Buyer Debit Initiated')
@@ -19,55 +19,52 @@ class SettlementState(models.TextChoices):
     SELLER_CREDIT_CONFIRMED = 'SELLER_CREDIT_CONFIRMED', _('Seller Credit Confirmed')
     LEDGER_FINALIZED = 'LEDGER_FINALIZED', _('Ledger Finalized')
     COMPENSATING = 'COMPENSATING', _('Compensating - Rolling Back')
-    REVERSED = 'REVERSED', _('Reversed')
+    REVERSED = 'REVERSED', _('Reversed - Rolled Back')
     DISPUTED_MANUAL = 'DISPUTED_MANUAL', _('Disputed - Manual Review')
-    FAILED = 'FAILED', _('Failed')
+    CLOSED_BY_TRUSTEE = 'CLOSED_BY_TRUSTEE', _('Closed by Trustee')
 
 
-class SettlementEventType(models.TextChoices):
-    
-    STATE_TRANSITION = 'STATE_TRANSITION', _('State Transition')
-    API_CALL = 'API_CALL', _('API Call')
-    API_RESPONSE = 'API_RESPONSE', _('API Response')
-    RECOVERY_ATTEMPT = 'RECOVERY_ATTEMPT', _('Recovery Attempt')
-    MANUAL_INTERVENTION = 'MANUAL_INTERVENTION', _('Manual Intervention')
-    DISPUTE_OPENED = 'DISPUTE_OPENED', _('Dispute Opened')
-    DISPUTE_RESOLVED = 'DISPUTE_RESOLVED', _('Dispute Resolved')
-    TRUSTEE_ESCALATION = 'TRUSTEE_ESCALATION', _('Trustee Escalation')
-    SACCO_API_FAILURE = 'SACCO_API_FAILURE', _('SACCO API Failure')
-    COMPENSATION_TRIGGERED = 'COMPENSATION_TRIGGERED', _('Compensation Triggered')
+class SettlementEventTrigger(models.TextChoices):
+
+    SYSTEM_MATCH = 'SYSTEM_MATCH', _('System Match')
+    INTENT_CREATED = 'INTENT_CREATED', _('Intent Created')
+    BUYER_SACCO_SUCCESS = 'BUYER_SACCO_SUCCESS', _('Buyer SACCO Success')
+    BUYER_SACCO_FAILURE = 'BUYER_SACCO_FAILURE', _('Buyer SACCO Failure')
+    SELLER_SACCO_SUCCESS = 'SELLER_SACCO_SUCCESS', _('Seller SACCO Success')
+    SELLER_SACCO_FAILURE = 'SELLER_SACCO_FAILURE', _('Seller SACCO Failure')
+    API_TIMEOUT = 'API_TIMEOUT', _('API Timeout')
+    API_RETRY_EXHAUSTED = 'API_RETRY_EXHAUSTED', _('API Retry Exhausted')
+    STATUS_LOOKUP = 'STATUS_LOOKUP', _('Status Lookup')
+    AMBIGUOUS_RESULT = 'AMBIGUOUS_RESULT', _('Ambiguous Result')
+    RECOVERY_WORKER = 'RECOVERY_WORKER', _('Recovery Worker')
+    OPS_MANUAL_CONFIRMATION = 'OPS_MANUAL_CONFIRMATION', _('Ops Manual Confirmation')
+    OPS_REVERSAL_INITIATED = 'OPS_REVERSAL_INITIATED', _('Ops Reversal Initiated')
+    OPS_ESCALATED_TO_TRUSTEE = 'OPS_ESCALATED_TO_TRUSTEE', _('Ops Escalated to Trustee')
+    OPS_FORCE_SETTLED = 'OPS_FORCE_SETTLED', _('Ops Force Settled')
+    OPS_NOTE_ADDED = 'OPS_NOTE_ADDED', _('Ops Note Added')
+    TRUSTEE_RESOLUTION = 'TRUSTEE_RESOLUTION', _('Trustee Resolution')
+    TTL_EXPIRED = 'TTL_EXPIRED', _('TTL Expired')
+    COMPENSATION_SUCCESS = 'COMPENSATION_SUCCESS', _('Compensation Success')
+    COMPENSATION_FAILURE = 'COMPENSATION_FAILURE', _('Compensation Failure')
 
 
-class DisputeStatus(models.TextChoices):
-    
-    OPEN = 'OPEN', _('Open')
-    INVESTIGATING = 'INVESTIGATING', _('Investigating')
-    AWAITING_SACCO = 'AWAITING_SACCO', _('Awaiting SACCO Response')
-    AWAITING_TRUSTEE = 'AWAITING_TRUSTEE', _('Awaiting Trustee Review')
-    RESOLVED_BUYER = 'RESOLVED_BUYER', _('Resolved - Buyer')
-    RESOLVED_SELLER = 'RESOLVED_SELLER', _('Resolved - Seller')
-    RESOLVED_SPLIT = 'RESOLVED_SPLIT', _('Resolved - Split')
-    CLOSED = 'CLOSED', _('Closed')
+class DisputeResolutionType(models.TextChoices):
 
-
-class ResolutionType(models.TextChoices):
-    
     MANUAL_CREDIT_CONFIRMED = 'MANUAL_CREDIT_CONFIRMED', _('Manual Credit Confirmed by SACCO')
     BUYER_REVERSAL_INITIATED = 'BUYER_REVERSAL_INITIATED', _('Buyer Reversal Initiated')
     ESCALATED_TO_TRUSTEE = 'ESCALATED_TO_TRUSTEE', _('Escalated to Trustee')
-    FORCE_SETTLED = 'FORCE_SETTLED', _('Force Settled - Executive Approval')
-    FORCE_REVERSED = 'FORCE_REVERSED', _('Force Reversed - Executive Approval')
-    TRUSTEE_ADVANCE = 'TRUSTEE_ADVANCE', _('Trustee Advanced Funds')
+    FORCE_MARKED_SETTLED = 'FORCE_MARKED_SETTLED', _('Force Marked Settled')
+    MANUAL_REVERSAL = 'MANUAL_REVERSAL', _('Manual Reversal')
 
 
 class SettlementIntent(BaseModel):
 
+    # Unique identification and idempotency
     uuid = models.UUIDField(
         default=uuid.uuid4,
         unique=True,
         editable=False,
-        db_index=True,
-        help_text=_("Public identifier for this settlement.")
+        help_text=_("Public-facing unique identifier for this settlement.")
     )
 
     idempotency_key = models.CharField(
@@ -77,6 +74,7 @@ class SettlementIntent(BaseModel):
         help_text=_("Idempotency key to prevent duplicate processing.")
     )
 
+    # State management
     state = models.CharField(
         max_length=30,
         choices=SettlementState.choices,
@@ -90,45 +88,48 @@ class SettlementIntent(BaseModel):
         help_text=_("Optimistic locking version counter.")
     )
 
-    # Connection Reference
-    connection = models.ForeignKey(
-        'investments.Connection',
-        on_delete=models.PROTECT,
-        related_name='settlement_intents',
-        help_text=_("The connection this settlement is for.")
-    )
-
-    # Buyer Information
+    # Parties involved
     buyer = models.ForeignKey(
         'users.User',
         on_delete=models.PROTECT,
         related_name='buyer_settlements',
-        help_text=_("The buyer in this transaction.")
+        help_text=_("The buyer in this settlement.")
     )
 
-    buyer_sacco_reference = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        help_text=_("Buyer's SACCO account reference.")
-    )
-
-    # Seller Information
     seller = models.ForeignKey(
         'users.User',
         on_delete=models.PROTECT,
         related_name='seller_settlements',
-        help_text=_("The seller in this transaction.")
+        help_text=_("The seller in this settlement.")
     )
 
-    seller_sacco_reference = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        help_text=_("Seller's SACCO account reference.")
+    # SACCO references
+    buyer_sacco_id = models.IntegerField(
+        help_text=_("ID of the buyer's SACCO.")
     )
 
-    # Financial Details
+    buyer_sacco_name = models.CharField(
+        max_length=255,
+        help_text=_("Name of the buyer's SACCO for audit trail.")
+    )
+
+    seller_sacco_id = models.IntegerField(
+        help_text=_("ID of the seller's SACCO.")
+    )
+
+    seller_sacco_name = models.CharField(
+        max_length=255,
+        help_text=_("Name of the seller's SACCO for audit trail.")
+    )
+
+    # Financial details
+    amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        validators=[validate_positive_amount],
+        help_text=_("Transaction amount in KSh.")
+    )
+
     share_quantity = models.DecimalField(
         max_digits=20,
         decimal_places=4,
@@ -143,109 +144,108 @@ class SettlementIntent(BaseModel):
         help_text=_("Agreed price per share.")
     )
 
-    total_amount = models.DecimalField(
-        max_digits=20,
-        decimal_places=2,
-        validators=[validate_positive_amount],
-        help_text=_("Total transaction amount (price * quantity).")
-    )
-
     platform_fee = models.DecimalField(
         max_digits=15,
         decimal_places=2,
         default=Decimal('0.00'),
-        help_text=_("Platform fee for this transaction.")
+        help_text=_("Platform fee for this settlement.")
     )
 
     net_seller_amount = models.DecimalField(
-        max_digits=20,
+        max_digits=15,
         decimal_places=2,
         default=Decimal('0.00'),
         help_text=_("Net amount the seller receives after fees.")
     )
 
-    # SACCO References
-    buyer_sacco_id = models.CharField(
-        max_length=100,
+    # External transaction references
+    buyer_debit_ref = models.CharField(
+        max_length=128,
         blank=True,
         default='',
-        help_text=_("Buyer's SACCO identifier.")
+        help_text=_("Transaction reference from buyer's SACCO for the debit.")
     )
 
-    seller_sacco_id = models.CharField(
-        max_length=100,
+    seller_credit_ref = models.CharField(
+        max_length=128,
         blank=True,
         default='',
-        help_text=_("Seller's SACCO identifier.")
+        help_text=_("Transaction reference from seller's SACCO for the credit.")
     )
 
-    # External Transaction References
-    buyer_debit_transaction_id = models.CharField(
-        max_length=100,
+    buyer_reversal_ref = models.CharField(
+        max_length=128,
         blank=True,
         default='',
-        help_text=_("Transaction ID from buyer's SACCO for the debit.")
+        help_text=_("Reference for buyer debit reversal if applicable.")
     )
 
-    seller_credit_transaction_id = models.CharField(
-        max_length=100,
+    # Connection reference
+    connection = models.ForeignKey(
+        'investments.Connection',
+        on_delete=models.PROTECT,
+        null=True,
         blank=True,
-        default='',
-        help_text=_("Transaction ID from seller's SACCO for the credit.")
+        related_name='settlements',
+        help_text=_("The connection that led to this settlement.")
     )
 
-    # M-Pesa References
-    buyer_mpesa_reference = models.CharField(
-        max_length=100,
+    # Liquidity request reference
+    liquidity_request_id = models.UUIDField(
+        null=True,
         blank=True,
-        default='',
-        help_text=_("M-Pesa transaction reference for buyer payment.")
-    )
-
-    seller_mpesa_reference = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        help_text=_("M-Pesa transaction reference for seller receipt.")
+        help_text=_("Reference to the original liquidity request.")
     )
 
     # Timing
     matched_at = models.DateTimeField(
-        default=timezone.now,
-        help_text=_("When the match was proposed.")
+        null=True,
+        blank=True,
+        help_text=_("When the match was first proposed.")
     )
 
     locked_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text=_("When funds and shares were locked.")
+        help_text=_("When the intent was locked and funds reserved.")
     )
 
-    buyer_debit_at = models.DateTimeField(
+    buyer_debited_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text=_("When buyer's account was debited.")
+        help_text=_("When buyer funds were successfully debited.")
     )
 
-    seller_credit_at = models.DateTimeField(
+    seller_credited_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text=_("When seller's account was credited.")
+        help_text=_("When seller was successfully credited.")
     )
 
-    completed_at = models.DateTimeField(
+    finalized_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text=_("When settlement was finalized.")
+        help_text=_("When the ledger was finalized.")
     )
 
-    failed_at = models.DateTimeField(
+    reversed_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text=_("When settlement failed.")
+        help_text=_("When the transaction was reversed.")
     )
 
-    # Retry Configuration
+    # TTL and recovery
+    ttl_seconds = models.PositiveIntegerField(
+        default=300,
+        help_text=_("Time-to-live in seconds before auto-expiry.")
+    )
+
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("When this intent expires if not progressed.")
+    )
+
     retry_count = models.PositiveIntegerField(
         default=0,
         help_text=_("Number of recovery attempts made.")
@@ -253,282 +253,37 @@ class SettlementIntent(BaseModel):
 
     max_retries = models.PositiveIntegerField(
         default=3,
-        help_text=_("Maximum number of automatic recovery attempts.")
+        help_text=_("Maximum number of automated recovery attempts.")
     )
 
-    last_retry_at = models.DateTimeField(
+    # Dispute handling
+    dispute_opened_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text=_("When the last recovery attempt was made.")
+        help_text=_("When a dispute was opened for this settlement.")
     )
 
-    # Error Information
-    error_message = models.TextField(
-        blank=True,
-        default='',
-        help_text=_("Last error message if settlement failed.")
-    )
-
-    error_code = models.CharField(
-        max_length=50,
-        blank=True,
-        default='',
-        help_text=_("Error code from the last failure.")
-    )
-
-    # TTL for automatic cleanup
-    ttl_seconds = models.PositiveIntegerField(
-        default=60,
-        help_text=_("Time-to-live in seconds for INTENT_LOCKED state.")
-    )
-
-    class Meta:
-        verbose_name = _('Settlement Intent')
-        verbose_name_plural = _('Settlement Intents')
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['uuid']),
-            models.Index(fields=['idempotency_key']),
-            models.Index(fields=['state', 'updated_at']),
-            models.Index(fields=['buyer', 'state']),
-            models.Index(fields=['seller', 'state']),
-            models.Index(fields=['connection']),
-        ]
-
-    def __str__(self):
-        return f"Settlement {self.uuid} - {self.get_state_display()}"
-
-    def save(self, *args, **kwargs):
-        if self.total_amount and not self.platform_fee:
-            from apps.core.utils import calculate_settlement_fee
-            self.platform_fee = calculate_settlement_fee(self.total_amount)
-            self.net_seller_amount = self.total_amount - self.platform_fee
-        super().save(*args, **kwargs)
-
-    def transition_to(self, new_state, error_message='', error_code=''):
-        from django.db.models import F
-
-        old_state = self.state
-        
-        updated = SettlementIntent.objects.filter(
-            id=self.id,
-            version=self.version
-        ).update(
-            state=new_state,
-            version=F('version') + 1,
-            error_message=error_message,
-            error_code=error_code,
-            updated_at=timezone.now()
-        )
-
-        if updated:
-            self.refresh_from_db()
-            
-            SettlementEvent.objects.create(
-                settlement_intent=self,
-                event_type=SettlementEventType.STATE_TRANSITION,
-                from_state=old_state,
-                to_state=new_state,
-                metadata={
-                    'version': self.version,
-                    'error_message': error_message,
-                    'error_code': error_code,
-                }
-            )
-            
-            self._update_timestamps(new_state)
-            
-            return True
-        
-        return False
-
-    def _update_timestamps(self, new_state):
-        now = timezone.now()
-        updates = {}
-        
-        if new_state == SettlementState.INTENT_LOCKED:
-            updates['locked_at'] = now
-        elif new_state == SettlementState.BUYER_DEBIT_CONFIRMED:
-            updates['buyer_debit_at'] = now
-        elif new_state == SettlementState.SELLER_CREDIT_CONFIRMED:
-            updates['seller_credit_at'] = now
-        elif new_state == SettlementState.LEDGER_FINALIZED:
-            updates['completed_at'] = now
-        elif new_state in [SettlementState.FAILED, SettlementState.REVERSED]:
-            updates['failed_at'] = now
-        
-        if updates:
-            SettlementIntent.objects.filter(id=self.id).update(**updates)
-
-    def is_at_point_of_no_return(self):
-        point_of_no_return_states = [
-            SettlementState.BUYER_DEBIT_CONFIRMED,
-            SettlementState.SELLER_CREDIT_INITIATED,
-            SettlementState.SELLER_CREDIT_CONFIRMED,
-            SettlementState.LEDGER_FINALIZED,
-        ]
-        return self.state in point_of_no_return_states
-
-    def needs_recovery(self):
-        stuck_states = [
-            SettlementState.BUYER_DEBIT_INITIATED,
-            SettlementState.SELLER_CREDIT_INITIATED,
-        ]
-        
-        if self.state not in stuck_states:
-            return False
-        
-        timeout_seconds = 300 if self.state == SettlementState.BUYER_DEBIT_INITIATED else 900
-        
-        if self.updated_at < timezone.now() - timezone.timedelta(seconds=timeout_seconds):
-            return True
-        
-        return False
-
-
-class SettlementEvent(TimeStampedModel):
-
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-
-    settlement_intent = models.ForeignKey(
-        SettlementIntent,
-        on_delete=models.CASCADE,
-        related_name='events',
-        help_text=_("The settlement this event belongs to.")
-    )
-
-    event_type = models.CharField(
-        max_length=30,
-        choices=SettlementEventType.choices,
-        help_text=_("Type of event recorded.")
-    )
-
-    from_state = models.CharField(
-        max_length=30,
-        blank=True,
-        default='',
-        help_text=_("Previous settlement state.")
-    )
-
-    to_state = models.CharField(
-        max_length=30,
-        blank=True,
-        default='',
-        help_text=_("New settlement state.")
-    )
-
-    trigger = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        help_text=_("What triggered this event (e.g., API_TIMEOUT, SACCO_SUCCESS).")
-    )
-
-    external_reference = models.CharField(
-        max_length=128,
-        blank=True,
-        default='',
-        help_text=_("External transaction reference if applicable.")
-    )
-
-    performed_by = models.ForeignKey(
-        'users.User',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        help_text=_("User who performed this action (for manual interventions).")
-    )
-
-    metadata = models.JSONField(
-        default=dict,
-        help_text=_("Additional event data (API payloads, error details, etc.).")
-    )
-
-    class Meta:
-        verbose_name = _('Settlement Event')
-        verbose_name_plural = _('Settlement Events')
-        ordering = ['created_at']
-        indexes = [
-            models.Index(fields=['settlement_intent', 'created_at']),
-            models.Index(fields=['event_type']),
-        ]
-
-    def __str__(self):
-        return f"Event: {self.get_event_type_display()} - {self.settlement_intent.uuid}"
-
-
-class Dispute(models.Model):
-
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False
-    )
-
-    settlement_intent = models.OneToOneField(
-        SettlementIntent,
-        on_delete=models.PROTECT,
-        related_name='dispute',
-        help_text=_("The disputed settlement.")
-    )
-
-    dispute_reference = models.CharField(
-        max_length=50,
-        unique=True,
-        db_index=True,
-        help_text=_("Human-readable dispute reference (e.g., CHX-DISP-4521).")
-    )
-
-    status = models.CharField(
-        max_length=30,
-        choices=DisputeStatus.choices,
-        default=DisputeStatus.OPEN,
-        db_index=True,
-        help_text=_("Current dispute resolution status.")
-    )
-
-    opened_at = models.DateTimeField(
-        default=timezone.now,
-        help_text=_("When the dispute was opened.")
-    )
-
-    resolved_at = models.DateTimeField(
+    dispute_resolved_at = models.DateTimeField(
         null=True,
         blank=True,
         help_text=_("When the dispute was resolved.")
     )
 
-    resolution_type = models.CharField(
-        max_length=30,
-        choices=ResolutionType.choices,
+    dispute_resolution_type = models.CharField(
+        max_length=40,
+        choices=DisputeResolutionType.choices,
         null=True,
         blank=True,
         help_text=_("How the dispute was resolved.")
     )
 
-    resolution_notes = models.TextField(
+    dispute_resolved_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
-        default='',
-        help_text=_("Detailed resolution notes.")
-    )
-
-    # Evidence and Documentation
-    sacco_confirmation_reference = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        help_text=_("SACCO confirmation reference for manual verification.")
-    )
-
-    sacco_officer_name = models.CharField(
-        max_length=255,
-        blank=True,
-        default='',
-        help_text=_("Name of SACCO officer who confirmed resolution.")
+        related_name='resolved_disputes',
+        help_text=_("The staff member who resolved the dispute.")
     )
 
     trustee_case_number = models.CharField(
@@ -538,146 +293,231 @@ class Dispute(models.Model):
         help_text=_("Trustee bank case reference if escalated.")
     )
 
-    trustee_advance_amount = models.DecimalField(
-        max_digits=20,
-        decimal_places=2,
-        null=True,
+    # Notes
+    internal_notes = models.TextField(
         blank=True,
-        help_text=_("Amount advanced by trustee while dispute is resolved.")
-    )
-
-    # Approval Trail
-    resolved_by = models.ForeignKey(
-        'users.User',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='resolved_disputes',
-        help_text=_("Operations team member who resolved the dispute.")
-    )
-
-    approved_by = models.ForeignKey(
-        'users.User',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='approved_disputes',
-        help_text=_("Executive who approved the resolution (for force actions).")
-    )
-
-    buyer_notified_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text=_("When the buyer was notified of the dispute.")
-    )
-
-    seller_notified_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text=_("When the seller was notified of the dispute.")
+        default='',
+        help_text=_("Internal notes for operations team (not visible to members).")
     )
 
     class Meta:
-        verbose_name = _('Dispute')
-        verbose_name_plural = _('Disputes')
-        ordering = ['-opened_at']
+        verbose_name = _('Settlement Intent')
+        verbose_name_plural = _('Settlement Intents')
+        ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['dispute_reference']),
-            models.Index(fields=['status']),
-            models.Index(fields=['opened_at']),
+            models.Index(fields=['state', 'updated_at']),
+            models.Index(fields=['buyer', 'state']),
+            models.Index(fields=['seller', 'state']),
+            models.Index(fields=['idempotency_key']),
+            models.Index(fields=['expires_at']),
         ]
 
     def __str__(self):
-        return f"Dispute {self.dispute_reference} - {self.get_status_display()}"
+        return f"Settlement {self.uuid} - {self.get_state_display()}"
 
     def save(self, *args, **kwargs):
-        if not self.dispute_reference:
-            self.dispute_reference = self._generate_reference()
+        if not self.expires_at and self.ttl_seconds:
+            self.expires_at = timezone.now() + timezone.timedelta(
+                seconds=self.ttl_seconds
+            )
+
+        if self.amount and self.platform_fee:
+            self.net_seller_amount = self.amount - self.platform_fee
+
         super().save(*args, **kwargs)
 
-    def _generate_reference(self):
-        import random
-        import string
-        prefix = 'CHX-DISP'
-        suffix = ''.join(random.choices(string.digits, k=4))
-        return f"{prefix}-{suffix}"
+    def transition_to(self, new_state, trigger, external_ref='', metadata=None):
+        from_state = self.state
 
-    def escalate_to_trustee(self, escalated_by):
-        self.status = DisputeStatus.AWAITING_TRUSTEE
-        self.save(update_fields=['status'])
+        if not self._is_valid_transition(from_state, new_state):
+            raise ValueError(
+                f"Invalid state transition: {from_state} -> {new_state}"
+            )
 
-        SettlementEvent.objects.create(
-            settlement_intent=self.settlement_intent,
-            event_type=SettlementEventType.TRUSTEE_ESCALATION,
-            from_state=self.settlement_intent.state,
-            to_state=self.settlement_intent.state,
-            trigger='TRUSTEE_ESCALATION',
-            performed_by=escalated_by,
-            metadata={
-                'dispute_reference': self.dispute_reference,
-                'escalated_at': str(timezone.now()),
-            }
-        )
+        self.state = new_state
+        self.version += 1
+        self.updated_at = timezone.now()
 
-    def resolve(self, resolution_type, resolved_by, notes='', approved_by=None, **kwargs):
-        self.status = DisputeStatus.CLOSED
-        self.resolution_type = resolution_type
-        self.resolved_by = resolved_by
-        self.resolution_notes = notes
-        self.resolved_at = timezone.now()
-
-        if approved_by:
-            self.approved_by = approved_by
-
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
+        if new_state == SettlementState.INTENT_LOCKED:
+            self.locked_at = timezone.now()
+        elif new_state == SettlementState.BUYER_DEBIT_CONFIRMED:
+            self.buyer_debited_at = timezone.now()
+        elif new_state == SettlementState.SELLER_CREDIT_CONFIRMED:
+            self.seller_credited_at = timezone.now()
+        elif new_state == SettlementState.LEDGER_FINALIZED:
+            self.finalized_at = timezone.now()
+        elif new_state == SettlementState.REVERSED:
+            self.reversed_at = timezone.now()
+        elif new_state == SettlementState.DISPUTED_MANUAL:
+            self.dispute_opened_at = timezone.now()
 
         self.save()
 
         SettlementEvent.objects.create(
-            settlement_intent=self.settlement_intent,
-            event_type=SettlementEventType.DISPUTE_RESOLVED,
-            from_state=self.settlement_intent.state,
-            to_state=self.settlement_intent.state,
-            trigger=f'DISPUTE_{resolution_type}',
-            performed_by=resolved_by,
-            metadata={
-                'dispute_reference': self.dispute_reference,
-                'resolution_type': resolution_type,
-                'notes': notes,
-            }
+            intent=self,
+            from_state=from_state,
+            to_state=new_state,
+            trigger=trigger,
+            external_ref=external_ref,
+            metadata=metadata or {},
         )
 
+        return True
 
-class SettlementLedger(BaseModel):
+    def _is_valid_transition(self, from_state, to_state):
+        valid_transitions = {
+            SettlementState.MATCH_PROPOSED: [
+                SettlementState.INTENT_LOCKED,
+                SettlementState.REVERSED,
+            ],
+            SettlementState.INTENT_LOCKED: [
+                SettlementState.BUYER_DEBIT_INITIATED,
+                SettlementState.DISPUTED_MANUAL,
+                SettlementState.REVERSED,
+            ],
+            SettlementState.BUYER_DEBIT_INITIATED: [
+                SettlementState.BUYER_DEBIT_CONFIRMED,
+                SettlementState.DISPUTED_MANUAL,
+                SettlementState.REVERSED,
+            ],
+            SettlementState.BUYER_DEBIT_CONFIRMED: [
+                SettlementState.SELLER_CREDIT_INITIATED,
+                SettlementState.COMPENSATING,
+                SettlementState.DISPUTED_MANUAL,
+            ],
+            SettlementState.SELLER_CREDIT_INITIATED: [
+                SettlementState.SELLER_CREDIT_CONFIRMED,
+                SettlementState.DISPUTED_MANUAL,
+                SettlementState.COMPENSATING,
+            ],
+            SettlementState.SELLER_CREDIT_CONFIRMED: [
+                SettlementState.LEDGER_FINALIZED,
+                SettlementState.DISPUTED_MANUAL,
+            ],
+            SettlementState.COMPENSATING: [
+                SettlementState.REVERSED,
+                SettlementState.DISPUTED_MANUAL,
+            ],
+            SettlementState.DISPUTED_MANUAL: [
+                SettlementState.SELLER_CREDIT_CONFIRMED,
+                SettlementState.LEDGER_FINALIZED,
+                SettlementState.REVERSED,
+                SettlementState.CLOSED_BY_TRUSTEE,
+            ],
+            SettlementState.LEDGER_FINALIZED: [],
+            SettlementState.REVERSED: [],
+            SettlementState.CLOSED_BY_TRUSTEE: [],
+        }
 
-    settlement_intent = models.OneToOneField(
+        return to_state in valid_transitions.get(from_state, [])
+
+    def is_past_point_of_no_return(self):
+        irreversible_states = [
+            SettlementState.BUYER_DEBIT_CONFIRMED,
+            SettlementState.SELLER_CREDIT_INITIATED,
+            SettlementState.SELLER_CREDIT_CONFIRMED,
+            SettlementState.LEDGER_FINALIZED,
+        ]
+        return self.state in irreversible_states
+
+    def is_terminal(self):
+        terminal_states = [
+            SettlementState.LEDGER_FINALIZED,
+            SettlementState.REVERSED,
+            SettlementState.CLOSED_BY_TRUSTEE,
+        ]
+        return self.state in terminal_states
+
+
+class SettlementEvent(models.Model):
+
+    intent = models.ForeignKey(
+        SettlementIntent,
+        on_delete=models.CASCADE,
+        related_name='events',
+        help_text=_("The settlement intent this event belongs to.")
+    )
+
+    from_state = models.CharField(
+        max_length=30,
+        choices=SettlementState.choices,
+        help_text=_("Previous state before this transition.")
+    )
+
+    to_state = models.CharField(
+        max_length=30,
+        choices=SettlementState.choices,
+        help_text=_("New state after this transition.")
+    )
+
+    trigger = models.CharField(
+        max_length=50,
+        choices=SettlementEventTrigger.choices,
+        help_text=_("What triggered this state transition.")
+    )
+
+    external_ref = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text=_("External reference (e.g., SACCO transaction ID).")
+    )
+
+    metadata = models.JSONField(
+        default=dict,
+        help_text=_("Additional context data for this event.")
+    )
+
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text=_("When this event occurred.")
+    )
+
+    actor = models.CharField(
+        max_length=100,
+        default='system',
+        help_text=_("Who or what caused this event (system, worker instance, user).")
+    )
+
+    class Meta:
+        verbose_name = _('Settlement Event')
+        verbose_name_plural = _('Settlement Events')
+        ordering = ['timestamp']
+        indexes = [
+            models.Index(fields=['intent', 'timestamp']),
+            models.Index(fields=['trigger']),
+        ]
+
+    def __str__(self):
+        return f"Event: {self.from_state} -> {self.to_state} ({self.trigger})"
+
+
+class LedgerEntry(models.Model):
+
+    settlement = models.OneToOneField(
         SettlementIntent,
         on_delete=models.PROTECT,
         related_name='ledger_entry',
-        help_text=_("The completed settlement.")
+        help_text=_("The settlement that created this ledger entry.")
     )
 
     buyer = models.ForeignKey(
         'users.User',
         on_delete=models.PROTECT,
         related_name='ledger_purchases',
-        help_text=_("The buyer.")
+        help_text=_("The buyer receiving shares.")
     )
 
     seller = models.ForeignKey(
         'users.User',
         on_delete=models.PROTECT,
         related_name='ledger_sales',
-        help_text=_("The seller.")
+        help_text=_("The seller transferring shares.")
     )
 
-    sacco = models.ForeignKey(
-        'investments.SACCO',
-        on_delete=models.PROTECT,
-        related_name='ledger_entries',
-        help_text=_("The SACCO whose shares were traded.")
+    sacco_id = models.IntegerField(
+        help_text=_("SACCO where shares are held.")
     )
 
     share_quantity = models.DecimalField(
@@ -689,13 +529,13 @@ class SettlementLedger(BaseModel):
     price_per_share = models.DecimalField(
         max_digits=15,
         decimal_places=2,
-        help_text=_("Price per share.")
+        help_text=_("Price per share at settlement.")
     )
 
     total_amount = models.DecimalField(
-        max_digits=20,
+        max_digits=15,
         decimal_places=2,
-        help_text=_("Total transaction amount.")
+        help_text=_("Total transaction value.")
     )
 
     platform_fee = models.DecimalField(
@@ -704,26 +544,112 @@ class SettlementLedger(BaseModel):
         help_text=_("Platform fee charged.")
     )
 
-    net_seller_amount = models.DecimalField(
-        max_digits=20,
-        decimal_places=2,
-        help_text=_("Net amount credited to seller.")
+    recorded_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text=_("When this ledger entry was created.")
     )
 
-    completed_at = models.DateTimeField(
-        default=timezone.now,
-        help_text=_("When the settlement was finalized.")
+    is_reversed = models.BooleanField(
+        default=False,
+        help_text=_("Whether this ledger entry has been reversed.")
+    )
+
+    reversal_entry = models.OneToOneField(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='original_entry',
+        help_text=_("Reference to the reversal ledger entry if reversed.")
     )
 
     class Meta:
-        verbose_name = _('Settlement Ledger')
-        verbose_name_plural = _('Settlement Ledger')
-        ordering = ['-completed_at']
+        verbose_name = _('Ledger Entry')
+        verbose_name_plural = _('Ledger Entries')
+        ordering = ['-recorded_at']
         indexes = [
-            models.Index(fields=['buyer', 'completed_at']),
-            models.Index(fields=['seller', 'completed_at']),
-            models.Index(fields=['sacco', 'completed_at']),
+            models.Index(fields=['buyer', 'recorded_at']),
+            models.Index(fields=['seller', 'recorded_at']),
+            models.Index(fields=['sacco_id']),
         ]
 
     def __str__(self):
-        return f"Ledger: {self.share_quantity} shares - {self.sacco.name}"
+        return f"Ledger: {self.share_quantity} shares - KSh {self.total_amount}"
+
+
+class SettlementReversal(models.Model):
+
+    settlement = models.ForeignKey(
+        SettlementIntent,
+        on_delete=models.PROTECT,
+        related_name='reversals',
+        help_text=_("The settlement being reversed.")
+    )
+
+    reversal_type = models.CharField(
+        max_length=30,
+        choices=[
+            ('BUYER_DEBIT', 'Buyer Debit Reversal'),
+            ('SELLER_SHARE_RELEASE', 'Seller Share Release'),
+            ('FULL_REVERSAL', 'Full Reversal'),
+        ],
+        help_text=_("Type of reversal.")
+    )
+
+    amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_("Amount being reversed (if applicable).")
+    )
+
+    external_ref = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text=_("External reference for the reversal transaction.")
+    )
+
+    initiated_by = models.CharField(
+        max_length=100,
+        default='system',
+        help_text=_("What initiated this reversal.")
+    )
+
+    initiated_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text=_("When the reversal was initiated.")
+    )
+
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("When the reversal was completed.")
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('INITIATED', 'Initiated'),
+            ('PROCESSING', 'Processing'),
+            ('COMPLETED', 'Completed'),
+            ('FAILED', 'Failed'),
+        ],
+        default='INITIATED',
+        help_text=_("Current reversal status.")
+    )
+
+    notes = models.TextField(
+        blank=True,
+        default='',
+        help_text=_("Notes about the reversal.")
+    )
+
+    class Meta:
+        verbose_name = _('Settlement Reversal')
+        verbose_name_plural = _('Settlement Reversals')
+        ordering = ['-initiated_at']
+
+    def __str__(self):
+        return f"Reversal for Settlement {self.settlement.uuid}"
