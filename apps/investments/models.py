@@ -651,6 +651,12 @@ class Connection(BaseModel):
 
 class Offer(models.Model):
 
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False
+    )
+
     connection = models.ForeignKey(
         Connection,
         on_delete=models.CASCADE,
@@ -702,6 +708,17 @@ class Offer(models.Model):
         blank=True,
         default='',
         help_text=_("Optional message accompanying the offer.")
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        editable=False,
+        help_text=_("When the offer was created.")
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text=_("When the offer was last modified.")
     )
 
     responded_at = models.DateTimeField(
