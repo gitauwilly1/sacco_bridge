@@ -1,54 +1,72 @@
+from decimal import Decimal
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from apps.core.serializers import BaseSerializer
+from apps.core.serializers import BaseSerializer, DynamicFieldsMixin
 from apps.transactions.models import (
-    SettlementIntent, SettlementEvent, DisputeRecord,
-    DisputeEvent, LedgerEntry, SettlementState
+    SettlementIntent, SettlementEvent, Dispute, SettlementLedger,
+    SettlementState, DisputeStatus, SettlementEventType
 )
 
 
 class SettlementEventSerializer(serializers.ModelSerializer):
 
+    event_type_display = serializers.SerializerMethodField()
+    performed_by_name = serializers.SerializerMethodField()
+
     class Meta:
         model = SettlementEvent
         fields = [
-            'id', 'from_state', 'to_state', 'trigger',
-            'external_ref', 'metadata', 'timestamp', 'actor',
+            'id', 'event_type', 'event_type_display',
+            'from_state', 'to_state', 'trigger',
+            'external_reference', 'performed_by_name',
+            'metadata', 'created_at',
         ]
 
+    def get_event_type_display(self, obj):
+        return obj.get_event_type_display()
 
-class SettlementIntentSerializer(BaseSerializer):
+    def get_performed_by_name(self, obj):
+        if obj.performed_by:
+            return obj.performed_by.get_full_name()
+        return 'System'
 
-    events = SettlementEventSerializer(many=True, read_only=True)
+
+class SettlementIntentSerializer(BaseSerializer, DynamicFieldsMixin):
+
     buyer_name = serializers.SerializerMethodField()
     seller_name = serializers.SerializerMethodField()
     state_display = serializers.SerializerMethodField()
-    is_terminal = serializers.SerializerMethodField()
+    events = SettlementEventSerializer(many=True, read_only=True)
+    dispute_reference = serializers.SerializerMethodField()
+    is_point_of_no_return = serializers.SerializerMethodField()
 
     class Meta:
         model = SettlementIntent
         fields = [
-            'id', 'idempotency_key', 'state', 'state_display',
-            'version', 'connection', 'buyer', 'buyer_name',
-            'seller', 'seller_name', 'share_quantity',
-            'price_per_share', 'total_amount', 'platform_fee',
-            'buyer_total_debit', 'seller_net_credit',
+            'id', 'uuid', 'idempotency_key', 'state',
+            'state_display', 'version', 'connection',
+            'buyer', 'buyer_name', 'seller', 'seller_name',
+            'share_quantity', 'price_per_share', 'total_amount',
+            'platform_fee', 'net_seller_amount',
             'buyer_debit_transaction_id',
             'seller_credit_transaction_id',
-            'reversal_transaction_id',
-            'retry_count', 'max_retries',
-            'last_error', 'last_error_at', 'timeout_at',
-            'completed_at', 'events', 'is_terminal',
+            'matched_at', 'locked_at', 'buyer_debit_at',
+            'seller_credit_at', 'completed_at', 'failed_at',
+            'retry_count', 'error_message', 'error_code',
+            'events', 'dispute_reference',
+            'is_point_of_no_return',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'idempotency_key', 'state', 'version',
-            'platform_fee', 'buyer_total_debit', 'seller_net_credit',
-            'buyer_debit_transaction_id', 'seller_credit_transaction_id',
-            'reversal_transaction_id', 'retry_count',
-            'last_error', 'last_error_at', 'timeout_at',
-            'completed_at', 'created_at', 'updated_at',
+            'id', 'uuid', 'idempotency_key', 'state',
+            'version', 'buyer_debit_transaction_id',
+            'seller_credit_transaction_id',
+            'matched_at', 'locked_at', 'buyer_debit_at',
+            'seller_credit_at', 'completed_at', 'failed_at',
+            'retry_count', 'error_message', 'error_code',
+            'created_at', 'updated_at',
         ]
 
     def get_buyer_name(self, obj):
@@ -60,184 +78,198 @@ class SettlementIntentSerializer(BaseSerializer):
     def get_state_display(self, obj):
         return obj.get_state_display()
 
-    def get_is_terminal(self, obj):
-        return obj.is_terminal()
+    def get_dispute_reference(self, obj):
+        if hasattr(obj, 'dispute') and obj.dispute:
+            return obj.dispute.dispute_reference
+        return None
+
+    def get_is_point_of_no_return(self, obj):
+        return obj.is_at_point_of_no_return()
+
+
+class SettlementIntentCreateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = SettlementIntent
+        fields = [
+            'connection', 'buyer', 'seller', 'share_quantity',
+            'price_per_share', 'total_amount',
+        ]
+
+    def validate_total_amount(self, value):
+        if value <= Decimal('0'):
+            raise serializers.ValidationError(
+                _('Total amount must be greater than zero.')
+            )
+        return value
+
+
+class SettlementLedgerSerializer(BaseSerializer):
+
+    buyer_name = serializers.SerializerMethodField()
+    seller_name = serializers.SerializerMethodField()
+    sacco_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SettlementLedger
+        fields = [
+            'id', 'settlement_intent', 'buyer', 'buyer_name',
+            'seller', 'seller_name', 'sacco', 'sacco_name',
+            'share_quantity', 'price_per_share', 'total_amount',
+            'platform_fee', 'net_seller_amount', 'completed_at',
+        ]
+        read_only_fields = fields
+
+    def get_buyer_name(self, obj):
+        return obj.buyer.get_full_name()
+
+    def get_seller_name(self, obj):
+        return obj.seller.get_full_name()
+
+    def get_sacco_name(self, obj):
+        return obj.sacco.name
+
+
+class DisputeSerializer(BaseSerializer):
+
+    settlement_uuid = serializers.SerializerMethodField()
+    buyer_name = serializers.SerializerMethodField()
+    seller_name = serializers.SerializerMethodField()
+    resolved_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Dispute
+        fields = [
+            'id', 'dispute_reference', 'settlement_intent',
+            'settlement_uuid', 'status', 'opened_at',
+            'resolved_at', 'resolution_type', 'resolution_notes',
+            'buyer_name', 'seller_name',
+            'sacco_confirmation_reference', 'sacco_officer_name',
+            'trustee_case_number', 'trustee_advance_amount',
+            'resolved_by', 'resolved_by_name',
+            'approved_by', 'approved_by_name',
+            'buyer_notified_at', 'seller_notified_at',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'dispute_reference', 'opened_at',
+            'resolved_at', 'created_at', 'updated_at',
+        ]
+
+    def get_settlement_uuid(self, obj):
+        return str(obj.settlement_intent.uuid)
+
+    def get_buyer_name(self, obj):
+        return obj.settlement_intent.buyer.get_full_name()
+
+    def get_seller_name(self, obj):
+        return obj.settlement_intent.seller.get_full_name()
+
+    def get_resolved_by_name(self, obj):
+        if obj.resolved_by:
+            return obj.resolved_by.get_full_name()
+        return None
+
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return obj.approved_by.get_full_name()
+        return None
+
+
+class DisputeResolveSerializer(serializers.Serializer):
+
+    resolution_type = serializers.CharField(required=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    sacco_confirmation_reference = serializers.CharField(
+        required=False, allow_blank=True
+    )
+    sacco_officer_name = serializers.CharField(
+        required=False, allow_blank=True
+    )
+    trustee_case_number = serializers.CharField(
+        required=False, allow_blank=True
+    )
+    trustee_advance_amount = serializers.DecimalField(
+        required=False, max_digits=20, decimal_places=2
+    )
+    requires_executive_approval = serializers.BooleanField(default=False)
+    executive_approved_by = serializers.CharField(required=False)
 
 
 class SettlementTimelineSerializer(serializers.Serializer):
 
     nodes = serializers.ListField()
 
-    @staticmethod
-    def build_timeline(intent):
-        state_labels = {
-            SettlementState.MATCH_PROPOSED: {
-                'label': 'Match Proposed',
-                'description': 'Buyer and seller have agreed on terms.',
-                'icon': 'handshake',
-            },
-            SettlementState.INTENT_LOCKED: {
-                'label': 'Funds Reserved',
-                'description': 'Buyer funds have been reserved for this transaction.',
-                'icon': 'lock',
-            },
-            SettlementState.BUYER_DEBIT_INITIATED: {
-                'label': 'Processing Payment',
-                'description': 'Debiting funds from buyer SACCO account.',
-                'icon': 'payment',
-            },
-            SettlementState.BUYER_DEBIT_CONFIRMED: {
-                'label': 'Payment Confirmed',
-                'description': 'Funds successfully debited from buyer.',
-                'icon': 'check_circle',
-            },
-            SettlementState.SELLER_CREDIT_INITIATED: {
-                'label': 'Transferring to Seller',
-                'description': 'Crediting funds to seller SACCO account.',
-                'icon': 'transfer',
-            },
-            SettlementState.SELLER_CREDIT_CONFIRMED: {
-                'label': 'Transfer Confirmed',
-                'description': 'Funds credited to seller account.',
-                'icon': 'check_circle',
-            },
-            SettlementState.LEDGER_FINALIZED: {
-                'label': 'Records Updated',
-                'description': 'Share ownership and ledger records updated.',
-                'icon': 'book',
-            },
-            SettlementState.SETTLED: {
-                'label': 'Settlement Complete',
-                'description': 'Transaction finalized. Funds and shares transferred.',
-                'icon': 'flag',
-            },
-            SettlementState.COMPENSATING: {
-                'label': 'Reversing Transaction',
-                'description': 'Returning funds to buyer due to settlement issue.',
-                'icon': 'undo',
-            },
-            SettlementState.DISPUTED_MANUAL: {
-                'label': 'Under Review',
-                'description': 'Our team is investigating a settlement issue.',
-                'icon': 'warning',
-            },
-        }
-
+    @classmethod
+    def from_settlement(cls, settlement_intent):
         nodes = []
-        events = intent.events.order_by('timestamp')
+        events = settlement_intent.events.all().order_by('created_at')
 
         for event in events:
-            state_info = state_labels.get(event.to_state, {})
-            nodes.append({
-                'state': event.to_state,
-                'label': state_info.get('label', event.to_state),
-                'description': state_info.get('description', ''),
-                'icon': state_info.get('icon', 'circle'),
-                'timestamp': event.timestamp.isoformat(),
-                'completed': event.to_state != intent.state or intent.is_terminal(),
-                'current': event.to_state == intent.state,
-                'is_error': event.to_state in [
-                    SettlementState.COMPENSATING,
-                    SettlementState.DISPUTED_MANUAL,
-                ],
-            })
-
-        if intent.is_terminal() and nodes:
-            nodes[-1]['completed'] = True
+            node = {
+                'timestamp': event.created_at,
+                'title': cls._get_node_title(event),
+                'description': cls._get_node_description(event),
+                'status': cls._get_node_status(event, settlement_intent),
+                'icon': cls._get_node_icon(event),
+            }
+            nodes.append(node)
 
         return {'nodes': nodes}
 
-
-class DisputeEventSerializer(serializers.ModelSerializer):
-
-    actor_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = DisputeEvent
-        fields = [
-            'id', 'action', 'description', 'actor', 'actor_name',
-            'evidence', 'timestamp',
-        ]
-
-    def get_actor_name(self, obj):
-        if obj.actor:
-            return obj.actor.get_full_name()
-        return 'System'
-
-
-class DisputeRecordSerializer(BaseSerializer):
-
-    events = DisputeEventSerializer(many=True, read_only=True)
-    settlement_summary = serializers.SerializerMethodField()
-
-    class Meta:
-        model = DisputeRecord
-        fields = [
-            'id', 'settlement_intent', 'settlement_summary',
-            'dispute_reference', 'status', 'priority',
-            'affected_party', 'disputed_amount',
-            'resolution_type', 'resolution_notes',
-            'resolved_by', 'resolved_at',
-            'trustee_case_number', 'events',
-            'created_at', 'updated_at',
-        ]
-        read_only_fields = [
-            'id', 'dispute_reference', 'created_at', 'updated_at',
-        ]
-
-    def get_settlement_summary(self, obj):
-        intent = obj.settlement_intent
-        return {
-            'id': str(intent.id),
-            'buyer': intent.buyer.get_full_name(),
-            'seller': intent.seller.get_full_name(),
-            'amount': str(intent.total_amount),
-            'state': intent.get_state_display(),
+    @classmethod
+    def _get_node_title(cls, event):
+        titles = {
+            SettlementEventType.STATE_TRANSITION: 'State Updated',
+            SettlementEventType.API_CALL: 'Processing',
+            SettlementEventType.API_RESPONSE: 'Response Received',
+            SettlementEventType.RECOVERY_ATTEMPT: 'Recovery Attempt',
+            SettlementEventType.MANUAL_INTERVENTION: 'Manual Review',
+            SettlementEventType.DISPUTE_OPENED: 'Dispute Opened',
+            SettlementEventType.DISPUTE_RESOLVED: 'Dispute Resolved',
+            SettlementEventType.TRUSTEE_ESCALATION: 'Trustee Engaged',
+            SettlementEventType.SACCO_API_FAILURE: 'SACCO System Issue',
+            SettlementEventType.COMPENSATION_TRIGGERED: 'Rollback Initiated',
         }
+        return titles.get(event.event_type, event.get_event_type_display())
 
+    @classmethod
+    def _get_node_description(cls, event):
+        descriptions = {
+            SettlementState.MATCH_PROPOSED: 'Match identified between buyer and seller',
+            SettlementState.INTENT_LOCKED: 'Funds and shares reserved',
+            SettlementState.BUYER_DEBIT_INITIATED: 'Initiating debit from buyer account',
+            SettlementState.BUYER_DEBIT_CONFIRMED: 'Buyer funds debited successfully',
+            SettlementState.SELLER_CREDIT_INITIATED: 'Initiating credit to seller account',
+            SettlementState.SELLER_CREDIT_CONFIRMED: 'Seller account credited successfully',
+            SettlementState.LEDGER_FINALIZED: 'Transaction finalized and recorded',
+            SettlementState.COMPENSATING: 'Rolling back transaction',
+            SettlementState.REVERSED: 'Transaction fully reversed',
+            SettlementState.DISPUTED_MANUAL: 'Flagged for manual review',
+            SettlementState.FAILED: 'Settlement failed',
+        }
+        to_state = event.to_state
+        return descriptions.get(to_state, f'Transitioned to {to_state}')
 
-class DisputeResolutionSerializer(serializers.Serializer):
+    @classmethod
+    def _get_node_status(cls, event, settlement):
+        if event.to_state == SettlementState.LEDGER_FINALIZED:
+            return 'completed'
+        elif event.to_state in [SettlementState.FAILED, SettlementState.REVERSED]:
+            return 'failed'
+        elif event.to_state == SettlementState.DISPUTED_MANUAL:
+            return 'disputed'
+        elif settlement.state == event.to_state:
+            return 'active'
+        return 'completed'
 
-    resolution_type = serializers.ChoiceField(
-        choices=[
-            ('MANUAL_CREDIT_CONFIRMED', 'Credit Confirmed by SACCO'),
-            ('BUYER_REVERSAL_INITIATED', 'Initiate Buyer Reversal'),
-            ('ESCALATED_TO_TRUSTEE', 'Escalate to Trustee'),
-            ('FORCE_SETTLED', 'Force Settle'),
-        ],
-        required=True,
-        help_text=_("Type of resolution to apply.")
-    )
-
-    notes = serializers.CharField(
-        required=True,
-        help_text=_("Detailed resolution notes explaining the decision.")
-    )
-
-    sacco_confirmation_ref = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text=_("SACCO confirmation reference (if applicable).")
-    )
-
-    external_evidence = serializers.JSONField(
-        required=False,
-        default=dict,
-        help_text=_("Additional evidence supporting the resolution.")
-    )
-
-
-class LedgerEntrySerializer(serializers.ModelSerializer):
-
-    party_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = LedgerEntry
-        fields = [
-            'id', 'settlement_intent', 'entry_type', 'amount',
-            'party', 'party_name', 'sacco_reference',
-            'description', 'created_at',
-        ]
-
-    def get_party_name(self, obj):
-        return obj.party.get_full_name()
+    @classmethod
+    def _get_node_icon(cls, event):
+        icons = {
+            'completed': 'check_circle',
+            'active': 'progress_circle',
+            'failed': 'error_circle',
+            'disputed': 'warning_circle',
+        }
+        return icons.get('active', 'circle')
