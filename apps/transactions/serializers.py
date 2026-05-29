@@ -214,8 +214,7 @@ class SettlementReversalSerializer(serializers.ModelSerializer):
 
 
 class DisputeResolutionSerializer(serializers.Serializer):
-    """Serializer for resolving a disputed settlement."""
-
+\
     resolution_type = serializers.ChoiceField(
         choices=[
             ('MANUAL_CREDIT_CONFIRMED', 'Manual Credit Confirmed by SACCO'),
