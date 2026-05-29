@@ -1,5 +1,6 @@
 import logging
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from django.conf import settings
 from django.utils import timezone
 
@@ -14,8 +15,8 @@ logger = logging.getLogger(__name__)
 class GeminiService:
 
     _initialized = False
-    _model = None
-    _chat_model = None
+    _client = None
+    _model_name = None
 
     SYSTEM_PROMPT = """You are the Sacco Bridge AI Assistant, a helpful and knowledgeable guide for Kenyan cooperative finance.
 
@@ -46,7 +47,6 @@ If you don't know something, say so honestly and suggest contacting human suppor
 
     @classmethod
     def initialize(cls):
-        """Initialize the Gemini API client."""
         if cls._initialized:
             return
 
@@ -56,18 +56,11 @@ If you don't know something, say so honestly and suggest contacting human suppor
                 logger.warning("Gemini API key not configured.")
                 return
 
-            genai.configure(api_key=api_key)
-
-            model_name = getattr(settings, 'GEMINI_MODEL', 'gemini-1.5-flash')
-            cls._model = genai.GenerativeModel(model_name)
-
-            cls._chat_model = genai.GenerativeModel(
-                model_name,
-                system_instruction=cls.SYSTEM_PROMPT
-            )
+            cls._client = genai.Client(api_key=api_key)
+            cls._model_name = getattr(settings, 'GEMINI_MODEL', 'gemini-1.5-flash')
 
             cls._initialized = True
-            logger.info(f"Gemini AI initialized with model: {model_name}")
+            logger.info(f"Gemini AI initialized with model: {cls._model_name}")
 
         except Exception as e:
             logger.error(f"Failed to initialize Gemini AI: {str(e)}")
@@ -78,16 +71,17 @@ If you don't know something, say so honestly and suggest contacting human suppor
 
         if not cls._initialized:
             return {
-                'response_text': "I apologize, but I'm currently unable to process your request. Please try again later or contact our support team for assistance.",
+                'response_text': (
+                    "I apologize, but I'm currently unable to process your request. "
+                    "Please try again later or contact our support team for assistance."
+                ),
                 'intent': 'error',
                 'confidence': 0.0,
                 'sources': [],
             }
 
         try:
-            relevant_articles = KnowledgeService.retrieve_relevant_articles(
-                user_message
-            )
+            relevant_articles = KnowledgeService.retrieve_relevant_articles(user_message)
 
             knowledge_context = ""
             sources = []
@@ -105,14 +99,26 @@ If you don't know something, say so honestly and suggest contacting human suppor
                 user_message, context, knowledge_context, conversation_history
             )
 
-            response = cls._chat_model.generate_content(full_prompt)
+            config = types.GenerateContentConfig(
+                system_instruction=cls.SYSTEM_PROMPT,
+                temperature=0.7,
+                max_output_tokens=1024,
+                top_p=0.95,
+            )
 
-            intent = cls._classify_intent(user_message, response.text)
+            response = cls._client.models.generate_content(
+                model=cls._model_name,
+                contents=full_prompt,
+                config=config,
+            )
 
-            tokens_used = cls._estimate_tokens(full_prompt + response.text)
+            response_text = response.text if response.text else ""
+
+            intent = cls._classify_intent(user_message, response_text)
+            tokens_used = cls._estimate_tokens(full_prompt + response_text)
 
             return {
-                'response_text': response.text,
+                'response_text': response_text,
                 'intent': intent,
                 'confidence': 0.85,
                 'sources': sources,
@@ -122,7 +128,10 @@ If you don't know something, say so honestly and suggest contacting human suppor
         except Exception as e:
             logger.error(f"Gemini response generation failed: {str(e)}")
             return {
-                'response_text': "I apologize, but I encountered an error processing your request. Please try again or contact our support team.",
+                'response_text': (
+                    "I apologize, but I encountered an error processing your request. "
+                    "Please try again or contact our support team."
+                ),
                 'intent': 'error',
                 'confidence': 0.0,
                 'sources': [],
@@ -131,7 +140,6 @@ If you don't know something, say so honestly and suggest contacting human suppor
     @classmethod
     def _build_context(cls, session):
         context_parts = []
-
         context_data = session.context_data or {}
 
         if context_data.get('user_name'):
@@ -177,8 +185,8 @@ If you don't know something, say so honestly and suggest contacting human suppor
         if history:
             prompt_parts.append("\n### Conversation History ###")
             for msg in history[-6:]:
-                role = "User" if msg['role'] == 'USER' else "Assistant"
-                prompt_parts.append(f"{role}: {msg['content']}")
+                role = "User" if msg.get('role') == 'USER' else "Assistant"
+                prompt_parts.append(f"{role}: {msg.get('content', '')}")
 
         prompt_parts.append("\n### Current Message ###")
         prompt_parts.append(f"User: {user_message}")

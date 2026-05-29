@@ -126,4 +126,4 @@ vine==5.1.0
 wcwidth==0.7.0
 whitenoise==6.7.0
 zope.interface==8.5
-google-generativeai==0.8.3
+google-genai==1.0.0

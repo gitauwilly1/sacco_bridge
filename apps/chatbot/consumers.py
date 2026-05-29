@@ -170,7 +170,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def save_message(self, session, role, content, intent='', confidence=0.0,
-                     sources=None, tokens_used=0):
+                    sources=None, tokens_used=0):
+        from django.conf import settings
         return ChatMessage.objects.create(
             session=session,
             role=role,
@@ -179,9 +180,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             confidence_score=confidence,
             sources=sources or [],
             tokens_used=tokens_used,
-            ai_model=getattr(__import__('django.conf').settings, 'GEMINI_MODEL', 'gemini-1.5-flash'),
+            ai_model=getattr(settings, 'GEMINI_MODEL', 'gemini-1.5-flash'),
         )
-
+    
     @database_sync_to_async
     def get_conversation_history(self, session):
         messages = ChatMessage.objects.filter(
