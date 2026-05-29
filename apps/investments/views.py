@@ -1,6 +1,7 @@
 import logging
 from django.db import transaction
 from django.utils import timezone
+from django.db import models as django_models
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status, permissions, viewsets
 from rest_framework.decorators import action
@@ -207,7 +208,7 @@ class ConnectionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         return Connection.objects.filter(
-            models.Q(seller=user) | models.Q(buyer=user),
+            django_models.Q(seller=user) | django_models.Q(buyer=user),
             is_deleted=False
         )
 
