@@ -1,0 +1,129 @@
+"""
+Custom middleware for Sacco Bridge.
+
+Provides request logging, API versioning, and security enhancements.
+"""
+
+import uuid
+import time
+import logging
+from django.utils import timezone
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
+class RequestLoggingMiddleware:
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        request.start_time = time.time()
+        request.request_id = str(uuid.uuid4())
+
+        self.log_request(request)
+
+        response = self.get_response(request)
+
+        self.log_response(request, response)
+
+        response['X-Request-ID'] = request.request_id
+        response['X-Response-Time'] = f"{self.calculate_request_time(request):.3f}s"
+
+        return response
+
+    def log_request(self, request):
+        logger.info(
+            f"Request started: {request.method} {request.get_full_path()}",
+            extra={
+                'request_id': request.request_id,
+                'method': request.method,
+                'path': request.get_full_path(),
+                'remote_addr': self.get_client_ip(request),
+                'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                'user_id': request.user.id if request.user.is_authenticated else None,
+            }
+        )
+
+    def log_response(self, request, response):
+        duration = self.calculate_request_time(request)
+
+        logger.info(
+            f"Request completed: {request.method} {request.get_full_path()} "
+            f"- {response.status_code} ({duration:.3f}s)",
+            extra={
+                'request_id': request.request_id,
+                'status_code': response.status_code,
+                'duration': duration,
+                'content_length': len(response.content) if hasattr(response, 'content') else 0,
+            }
+        )
+
+    def calculate_request_time(self, request):
+        return time.time() - request.start_time
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
+
+
+class APIVersionMiddleware:
+
+    SUPPORTED_VERSIONS = ['v1']
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        api_version = request.headers.get('X-API-Version', 'v1')
+
+        if api_version not in self.SUPPORTED_VERSIONS:
+            from django.http import JsonResponse
+            return JsonResponse(
+                {
+                    'success': False,
+                    'error': {
+                        'code': 'unsupported_api_version',
+                        'message': f'API version {api_version} is not supported. '
+                                   f'Supported versions: {", ".join(self.SUPPORTED_VERSIONS)}',
+                    }
+                },
+                status=400
+            )
+
+        request.api_version = api_version
+
+        response = self.get_response(request)
+        response['X-API-Version'] = api_version
+
+        return response
+
+
+class SecurityHeadersMiddleware:
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        response['X-Content-Type-Options'] = 'nosniff'
+        response['X-Frame-Options'] = 'DENY'
+        response['X-XSS-Protection'] = '1; mode=block'
+        response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response['Permissions-Policy'] = (
+            'camera=(), microphone=(), geolocation=(), '
+            'interest-cohort=()'
+        )
+
+        if not settings.DEBUG:
+            response['Strict-Transport-Security'] = (
+                'max-age=31536000; includeSubDomains; preload'
+            )
+
+        return response
