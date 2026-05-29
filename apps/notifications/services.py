@@ -1,18 +1,16 @@
 import logging
-import json
+import firebase_admin
+from firebase_admin import credentials, messaging
 from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-import firebase_admin
-from firebase_admin import credentials, messaging
-
 from apps.notifications.models import (
-    Notification, NotificationPreference, NotificationTemplate, UserDevice,
-    NotificationChannel, NotificationStatus, NotificationCategory,
-    NotificationPriority, DevicePlatform
+    Notification, NotificationDelivery, NotificationTemplate,
+    NotificationChannel, NotificationCategory, NotificationPriority,
+    DeliveryStatus, UserDevice, NotificationPreference
 )
 
 logger = logging.getLogger(__name__)
@@ -24,125 +22,114 @@ class FirebaseService:
 
     @classmethod
     def initialize(cls):
-        if not cls._initialized:
-            try:
-                cred_path = getattr(settings, 'FIREBASE_CREDENTIALS_PATH', None)
-                if cred_path:
-                    cred = credentials.Certificate(cred_path)
-                    firebase_admin.initialize_app(cred)
-                else:
-                    firebase_admin.initialize_app()
+        """Initialize Firebase Admin SDK if not already initialized."""
+        if cls._initialized:
+            return
+
+        try:
+            cred_path = getattr(settings, 'FIREBASE_CREDENTIALS_PATH', None)
+            if cred_path:
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred)
                 cls._initialized = True
                 logger.info("Firebase Admin SDK initialized successfully.")
-            except Exception as e:
-                logger.error(f"Failed to initialize Firebase: {str(e)}")
-                raise
+            else:
+                logger.warning("Firebase credentials path not configured.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Firebase: {str(e)}")
 
     @classmethod
-    def send_push_notification(cls, user, title, body, data=None, action_url=''):
+    def send_push_notification(cls, device_token, title, body, data=None, image_url=None):
         cls.initialize()
 
-        devices = UserDevice.objects.filter(
-            user=user,
-            is_active=True
-        )
+        if not cls._initialized:
+            return {'status': 'failed', 'error': 'Firebase not initialized'}
 
-        if not devices.exists():
-            logger.info(f"No active devices for user {user.email}")
-            return 0, 0, []
-
-        success_count = 0
-        failure_count = 0
-        message_ids = []
-
-        for device in devices:
-            try:
-                message = messaging.Message(
-                    token=device.fcm_token,
-                    notification=messaging.Notification(
-                        title=title,
-                        body=body,
+        try:
+            message = messaging.Message(
+                token=device_token,
+                notification=messaging.Notification(
+                    title=title,
+                    body=body,
+                    image=image_url if image_url else None,
+                ),
+                data={k: str(v) for k, v in (data or {}).items()},
+                android=messaging.AndroidConfig(
+                    priority='high',
+                    notification=messaging.AndroidNotification(
+                        channel_id='sacco_bridge_default',
+                        color='#C67B5C',
+                        icon='notification_icon',
                     ),
-                    data=data or {},
-                    android=messaging.AndroidConfig(
-                        priority='high',
-                        notification=messaging.AndroidNotification(
-                            channel_id='sacco_bridge_default',
-                            click_action=action_url or 'FLUTTER_NOTIFICATION_CLICK',
+                ),
+                apns=messaging.APNSConfig(
+                    payload=messaging.APNSPayload(
+                        aps=messaging.Aps(
+                            sound='default',
+                            badge=1,
+                            content_available=True,
                         ),
                     ),
-                    apns=messaging.APNSConfig(
-                        payload=messaging.APNSPayload(
-                            aps=messaging.Aps(
-                                alert=messaging.ApsAlert(
-                                    title=title,
-                                    body=body,
-                                ),
-                                sound='default',
-                                badge=1,
-                            ),
-                        ),
-                    ),
-                )
-
-                response = messaging.send(message)
-                message_ids.append(response)
-                success_count += 1
-                logger.info(f"Push notification sent to {user.email}: {response}")
-
-            except messaging.UnregisteredError:
-                device.is_active = False
-                device.save()
-                failure_count += 1
-                logger.warning(f"Device token unregistered for {user.email}")
-
-            except Exception as e:
-                failure_count += 1
-                logger.error(f"Failed to send push to {user.email}: {str(e)}")
-
-        return success_count, failure_count, message_ids
-
-    @classmethod
-    def send_multicast(cls, users, title, body, data=None):
-        cls.initialize()
-
-        total_success = 0
-        total_failure = 0
-
-        for user in users:
-            success, failure, _ = cls.send_push_notification(
-                user, title, body, data
+                ),
             )
-            total_success += success
-            total_failure += failure
 
-        return total_success, total_failure
+            response = messaging.send(message)
+            logger.info(f"Push notification sent: {response}")
+            return {'status': 'sent', 'message_id': response}
+
+        except messaging.UnregisteredError:
+            UserDevice.objects.filter(firebase_token=device_token).update(
+                is_active=False
+            )
+            logger.warning(f"Device token unregistered: {device_token}")
+            return {'status': 'failed', 'error': 'Device unregistered'}
+
+        except Exception as e:
+            logger.error(f"Failed to send push notification: {str(e)}")
+            return {'status': 'failed', 'error': str(e)}
 
     @classmethod
-    def register_device(cls, user, fcm_token, platform, device_name='', device_model='', app_version=''):
-        device, created = UserDevice.objects.update_or_create(
-            fcm_token=fcm_token,
-            defaults={
-                'user': user,
-                'platform': platform,
-                'device_name': device_name,
-                'device_model': device_model,
-                'app_version': app_version,
-                'is_active': True,
+    def send_multicast(cls, device_tokens, title, body, data=None):
+        cls.initialize()
+
+        if not cls._initialized:
+            return {'success_count': 0, 'failure_count': len(device_tokens), 'responses': []}
+
+        try:
+            message = messaging.MulticastMessage(
+                tokens=device_tokens,
+                notification=messaging.Notification(title=title, body=body),
+                data={k: str(v) for k, v in (data or {}).items()},
+            )
+
+            response = messaging.send_each_for_multicast(message)
+            success_count = response.success_count
+            failure_count = response.failure_count
+
+            for idx, resp in enumerate(response.responses):
+                if not resp.success:
+                    if isinstance(resp.exception, messaging.UnregisteredError):
+                        UserDevice.objects.filter(
+                            firebase_token=device_tokens[idx]
+                        ).update(is_active=False)
+
+            logger.info(
+                f"Multicast sent: {success_count} success, {failure_count} failure"
+            )
+
+            return {
+                'success_count': success_count,
+                'failure_count': failure_count,
+                'responses': response.responses,
             }
-        )
 
-        if created:
-            logger.info(f"New device registered for {user.email}: {device_name}")
-        else:
-            logger.info(f"Device updated for {user.email}: {device_name}")
-
-        return device
-
-    @classmethod
-    def unregister_device(cls, fcm_token):
-        UserDevice.objects.filter(fcm_token=fcm_token).update(is_active=False)
-        logger.info(f"Device unregistered: {fcm_token}")
+        except Exception as e:
+            logger.error(f"Multicast push failed: {str(e)}")
+            return {
+                'success_count': 0,
+                'failure_count': len(device_tokens),
+                'error': str(e)
+            }
 
 
 class SMSService:
@@ -151,148 +138,113 @@ class SMSService:
     def send_sms(cls, phone_number, message):
         try:
             import africastalking
-            africastalking.initialize(
-                settings.AFRICASTALKING_USERNAME,
-                settings.AFRICASTALKING_API_KEY
-            )
 
+            username = settings.AFRICASTALKING_USERNAME
+            api_key = settings.AFRICASTALKING_API_KEY
+
+            africastalking.initialize(username, api_key)
             sms = africastalking.SMS
 
             response = sms.send(
-                message=message,
-                recipients=[phone_number],
-                sender_id='SACCO_BRIDGE'
+                message,
+                [phone_number],
+                settings.AFRICASTALKING_SENDER_ID if hasattr(settings, 'AFRICASTALKING_SENDER_ID') else None
             )
 
             logger.info(f"SMS sent to {phone_number}: {response}")
 
-            return {
-                'status': 'SUCCESS',
-                'message_id': str(response.get('SMSMessageData', {}).get('Recipients', [{}])[0].get('messageId', '')),
-            }
+            if response.get('SMSMessageData', {}).get('Recipients'):
+                recipient = response['SMSMessageData']['Recipients'][0]
+                return {
+                    'status': 'sent' if recipient['status'] == 'Success' else 'failed',
+                    'message_id': recipient.get('messageId', ''),
+                    'cost': recipient.get('cost', ''),
+                }
+
+            return {'status': 'failed', 'error': 'No recipient data in response'}
 
         except Exception as e:
             logger.error(f"Failed to send SMS to {phone_number}: {str(e)}")
-            return {
-                'status': 'FAILED',
-                'error': str(e),
-            }
-
-    @classmethod
-    def format_kenyan_number(cls, phone_number):
-        import re
-        cleaned = re.sub(r'\s+', '', phone_number)
-
-        if cleaned.startswith('0'):
-            return '+254' + cleaned[1:]
-        elif cleaned.startswith('254'):
-            return '+' + cleaned
-        elif cleaned.startswith('+254'):
-            return cleaned
-        elif cleaned.startswith('7'):
-            return '+254' + cleaned
-
-        return cleaned
+            return {'status': 'failed', 'error': str(e)}
 
 
 class EmailService:
 
     @classmethod
-    def send_email(cls, recipient_email, subject, html_body, text_body=''):
+    def send_email(cls, recipient_email, subject, html_body, plain_text=''):
         try:
             send_mail(
                 subject=subject,
-                message=text_body or subject,
+                message=plain_text or 'Please view this email in HTML format.',
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[recipient_email],
                 html_message=html_body,
                 fail_silently=False,
             )
+
             logger.info(f"Email sent to {recipient_email}: {subject}")
-            return True
+            return {'status': 'sent'}
 
         except Exception as e:
             logger.error(f"Failed to send email to {recipient_email}: {str(e)}")
-            return False
-
-    @classmethod
-    def send_templated_email(cls, recipient_email, template_name, context):
-        try:
-            html_body = render_to_string(template_name, context)
-            subject = context.get('subject', 'Sacco Bridge Notification')
-
-            return cls.send_email(recipient_email, subject, html_body)
-
-        except Exception as e:
-            logger.error(f"Failed to send templated email: {str(e)}")
-            return False
+            return {'status': 'failed', 'error': str(e)}
 
 
 class NotificationService:
 
     @classmethod
-    def send_notification(
+    def create_notification(
         cls,
         user,
         category,
         title,
         body,
-        channels=None,
         priority=NotificationPriority.MEDIUM,
-        data=None,
+        template=None,
         action_url='',
-        reference_id='',
-        reference_type='',
-        short_message='',
-        email_subject='',
-        email_body='',
+        action_text='',
+        data=None,
+        channels=None,
     ):
-        if channels is None:
-            channels = [
-                NotificationChannel.IN_APP,
-                NotificationChannel.PUSH,
-                NotificationChannel.SMS,
-                NotificationChannel.EMAIL,
-            ]
-
-        # Check user preferences for each channel
-        enabled_channels = cls._filter_by_preferences(user, category, channels)
-
-        if not enabled_channels:
-            logger.info(f"All channels disabled for user {user.email}, category {category}")
-            return None
-
-        # Create the notification record
         notification = Notification.objects.create(
             user=user,
+            template=template,
             category=category,
             priority=priority,
             title=title,
             body=body,
-            short_message=short_message or body[:160],
-            channel=enabled_channels[0],
             action_url=action_url,
+            action_text=action_text,
             data=data or {},
-            reference_id=reference_id,
-            reference_type=reference_type,
+            channels_sent=[],
         )
 
-        # Deliver through each enabled channel
-        for channel in enabled_channels:
-            cls._deliver_to_channel(
-                notification, channel, user, title, body,
-                short_message, email_subject, email_body,
-                data, action_url
-            )
+        if channels is None:
+            channels = cls._get_user_channels(user, category)
+
+        sent_channels = []
+
+        for channel in channels:
+            success = cls._deliver_channel(notification, channel, user)
+            if success:
+                sent_channels.append(channel)
+
+        if sent_channels:
+            notification.channels_sent = sent_channels
+            notification.save(update_fields=['channels_sent'])
+
+        logger.info(
+            f"Notification {notification.id} created for user {user.email} "
+            f"via channels: {sent_channels}"
+        )
 
         return notification
 
     @classmethod
-    def send_from_template(cls, user, template_name, context, channels=None):
+    def create_from_template(cls, user, template_name, context, action_url='', data=None):
         try:
             template = NotificationTemplate.objects.get(
-                name=template_name,
-                is_active=True
+                name=template_name, is_active=True
             )
         except NotificationTemplate.DoesNotExist:
             logger.error(f"Notification template not found: {template_name}")
@@ -300,108 +252,200 @@ class NotificationService:
 
         rendered = template.render(context)
 
-        if channels is None:
-            channels = template.default_channels
-
-        return cls.send_notification(
+        return cls.create_notification(
             user=user,
             category=template.category,
             title=rendered['title'],
             body=rendered['body'],
-            channels=channels,
             priority=template.default_priority,
-            action_url=rendered.get('action_url', ''),
-            reference_id=context.get('reference_id', ''),
-            reference_type=context.get('reference_type', ''),
-            short_message=rendered.get('sms', ''),
-            email_subject=rendered.get('email_subject', ''),
-            email_body=rendered.get('email_body', ''),
-            data=context.get('data', {}),
+            template=template,
+            action_url=action_url,
+            data=data,
         )
 
     @classmethod
-    def send_bulk_from_template(cls, users, template_name, context, channels=None):
-        notifications = []
+    def _get_user_channels(cls, user, category):
+        channels = [NotificationChannel.IN_APP]
 
-        for user in users:
-            user_context = context.copy()
-            user_context['user_name'] = user.get_full_name()
-            user_context['user_email'] = user.email
-
-            notification = cls.send_from_template(
-                user, template_name, user_context, channels
+        try:
+            pref = NotificationPreference.objects.get(
+                user=user, category=category
             )
-            if notification:
-                notifications.append(notification)
 
-        return notifications
+            if pref.push_enabled and not cls._is_quiet_hours(pref):
+                channels.append(NotificationChannel.PUSH)
+
+            if pref.sms_enabled:
+                channels.append(NotificationChannel.SMS)
+
+            if pref.email_enabled:
+                channels.append(NotificationChannel.EMAIL)
+
+        except NotificationPreference.DoesNotExist:
+            channels.extend([
+                NotificationChannel.PUSH,
+                NotificationChannel.SMS,
+                NotificationChannel.EMAIL,
+            ])
+
+        return channels
 
     @classmethod
-    def _filter_by_preferences(cls, user, category, channels):
-        preferences = NotificationPreference.objects.filter(
-            user=user,
-            category=category
-        ).values('channel', 'enabled')
+    def _is_quiet_hours(cls, preference):
+        if not preference.quiet_hours_start or not preference.quiet_hours_end:
+            return False
 
-        pref_map = {p['channel']: p['enabled'] for p in preferences}
+        now = timezone.localtime().time()
+        start = preference.quiet_hours_start
+        end = preference.quiet_hours_end
 
-        enabled_channels = []
-        for channel in channels:
+        if start <= end:
+            return start <= now <= end
+        else:
+            return now >= start or now <= end
+
+    @classmethod
+    def _deliver_channel(cls, notification, channel, user):
+        delivery = NotificationDelivery.objects.create(
+            notification=notification,
+            channel=channel,
+            recipient=cls._get_recipient(user, channel),
+            status=DeliveryStatus.PENDING,
+        )
+
+        try:
             if channel == NotificationChannel.IN_APP:
-                enabled_channels.append(channel)
-            elif pref_map.get(channel, True):
-                enabled_channels.append(channel)
+                delivery.status = DeliveryStatus.DELIVERED
+                delivery.delivered_at = timezone.now()
+                delivery.save()
+                return True
 
-        return enabled_channels
+            elif channel == NotificationChannel.PUSH:
+                devices = UserDevice.objects.filter(
+                    user=user, is_active=True
+                )
+
+                if devices.exists():
+                    tokens = list(devices.values_list('firebase_token', flat=True))
+
+                    if len(tokens) == 1:
+                        result = FirebaseService.send_push_notification(
+                            tokens[0],
+                            notification.title,
+                            notification.body,
+                            data={
+                                'notification_id': str(notification.id),
+                                'category': notification.category,
+                                'action_url': notification.action_url,
+                                **(notification.data or {}),
+                            },
+                        )
+                    else:
+                        result = FirebaseService.send_multicast(
+                            tokens,
+                            notification.title,
+                            notification.body,
+                            data={
+                                'notification_id': str(notification.id),
+                                'category': notification.category,
+                                'action_url': notification.action_url,
+                                **(notification.data or {}),
+                            },
+                        )
+
+                    if result.get('status') == 'sent':
+                        delivery.status = DeliveryStatus.SENT
+                        delivery.provider_message_id = result.get('message_id', '')
+                    elif result.get('success_count', 0) > 0:
+                        delivery.status = DeliveryStatus.SENT
+                    else:
+                        delivery.status = DeliveryStatus.FAILED
+                        delivery.error_message = result.get('error', 'Unknown error')
+
+                    delivery.sent_at = timezone.now()
+                    delivery.save()
+                    return delivery.status != DeliveryStatus.FAILED
+                else:
+                    delivery.status = DeliveryStatus.FAILED
+                    delivery.error_message = 'No active devices'
+                    delivery.save()
+                    return False
+
+            elif channel == NotificationChannel.SMS:
+                phone = user.phone_number
+                if phone:
+                    sms_body = notification.body[:160]
+                    result = SMSService.send_sms(phone, sms_body)
+
+                    delivery.status = (
+                        DeliveryStatus.SENT if result.get('status') == 'sent'
+                        else DeliveryStatus.FAILED
+                    )
+                    delivery.provider_message_id = result.get('message_id', '')
+                    delivery.sent_at = timezone.now()
+                    delivery.provider_response = result
+                    if result.get('status') != 'sent':
+                        delivery.error_message = result.get('error', '')
+                    delivery.save()
+                    return delivery.status == DeliveryStatus.SENT
+                else:
+                    delivery.status = DeliveryStatus.FAILED
+                    delivery.error_message = 'No phone number'
+                    delivery.save()
+                    return False
+
+            elif channel == NotificationChannel.EMAIL:
+                email = user.email
+                if email:
+                    result = EmailService.send_email(
+                        email,
+                        notification.title,
+                        notification.body,
+                    )
+
+                    delivery.status = (
+                        DeliveryStatus.SENT if result.get('status') == 'sent'
+                        else DeliveryStatus.FAILED
+                    )
+                    delivery.sent_at = timezone.now()
+                    if result.get('status') != 'sent':
+                        delivery.error_message = result.get('error', '')
+                    delivery.save()
+                    return delivery.status == DeliveryStatus.SENT
+                else:
+                    delivery.status = DeliveryStatus.FAILED
+                    delivery.error_message = 'No email address'
+                    delivery.save()
+                    return False
+
+        except Exception as e:
+            logger.error(f"Delivery failed for notification {notification.id}: {str(e)}")
+            delivery.status = DeliveryStatus.FAILED
+            delivery.error_message = str(e)
+            delivery.save()
+            return False
+
+        return False
 
     @classmethod
-    def _deliver_to_channel(
-        cls, notification, channel, user, title, body,
-        short_message, email_subject, email_body, data, action_url
-    ):
-        if channel == NotificationChannel.PUSH:
-            success, failure, msg_ids = FirebaseService.send_push_notification(
-                user, title, body, data, action_url
-            )
-            if success > 0:
-                notification.mark_as_sent(msg_ids[0] if msg_ids else '')
-            elif failure > 0:
-                notification.mark_as_failed('No active devices or delivery failed')
-
+    def _get_recipient(cls, user, channel):
+        if channel == NotificationChannel.EMAIL:
+            return user.email
         elif channel == NotificationChannel.SMS:
-            phone = SMSService.format_kenyan_number(user.phone_number)
-            result = SMSService.send_sms(phone, short_message or body[:160])
-            if result['status'] == 'SUCCESS':
-                notification.mark_as_sent(result.get('message_id', ''))
-            else:
-                notification.mark_as_failed(result.get('error', 'SMS delivery failed'))
-
-        elif channel == NotificationChannel.EMAIL:
-            subject = email_subject or title
-            html_body = email_body or f"<p>{body}</p>"
-            success = EmailService.send_email(user.email, subject, html_body)
-            if success:
-                notification.mark_as_sent()
-            else:
-                notification.mark_as_failed('Email delivery failed')
-
-        elif channel == NotificationChannel.IN_APP:
-            notification.mark_as_sent()
+            return user.phone_number
+        elif channel == NotificationChannel.PUSH:
+            devices = UserDevice.objects.filter(user=user, is_active=True)
+            return devices.first().firebase_token if devices.exists() else ''
+        return ''
 
     @classmethod
     def mark_all_read(cls, user):
-        updated = Notification.objects.filter(
-            user=user,
-            status__in=[NotificationStatus.SENT, NotificationStatus.DELIVERED]
-        ).update(
-            status=NotificationStatus.READ,
-            read_at=timezone.now()
-        )
-        return updated
+        Notification.objects.filter(
+            user=user, is_read=False
+        ).update(is_read=True, read_at=timezone.now())
 
     @classmethod
     def get_unread_count(cls, user):
         return Notification.objects.filter(
-            user=user,
-            status__in=[NotificationStatus.SENT, NotificationStatus.DELIVERED]
+            user=user, is_read=False
         ).count()
