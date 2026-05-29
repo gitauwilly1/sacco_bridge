@@ -1,9 +1,3 @@
-"""
-Custom middleware for Sacco Bridge.
-
-Provides request logging, API versioning, and security enhancements.
-"""
-
 import uuid
 import time
 import logging
