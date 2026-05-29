@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
-
 from apps.users.models import User, UserRole, UserProfile, LoginHistory
 
 
@@ -23,7 +22,7 @@ class UserProfileInline(admin.StackedInline):
 class LoginHistoryInline(admin.TabularInline):
     model = LoginHistory
     extra = 0
-    fields = ('login_timestamp', 'ip_address', 'device_type', 'login_successful', 'failure_reason')
+    fields = ('login_timestamp', 'ip_address', 'device_type', 'login_successful')
     readonly_fields = fields
     can_delete = False
     max_num = 0
@@ -31,115 +30,31 @@ class LoginHistoryInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-
-
-    list_display = [
-        'email',
-        'phone_number',
-        'get_full_name',
-        'is_active',
-        'is_staff',
-        'id_verification_status',
-        'trust_score',
-        'date_joined',
-    ]
-
-    list_filter = [
-        'is_active',
-        'is_staff',
-        'is_superuser',
-        'id_verification_status',
-        'email_verified',
-        'phone_verified',
-        'two_factor_enabled',
-        'date_joined',
-    ]
-
-    search_fields = [
-        'email',
-        'phone_number',
-        'first_name',
-        'last_name',
-        'national_id',
-    ]
-
+    list_display = ['email', 'phone_number', 'get_full_name', 'is_active', 'is_staff', 'id_verification_status', 'trust_score', 'date_joined']
+    list_filter = ['is_active', 'is_staff', 'id_verification_status', 'email_verified', 'phone_verified', 'two_factor_enabled', 'date_joined']
+    search_fields = ['email', 'phone_number', 'first_name', 'last_name', 'national_id']
     ordering = ['-date_joined']
 
     fieldsets = (
-        (None, {
-            'fields': ('email', 'phone_number', 'password')
-        }),
-        (_('Personal Information'), {
-            'fields': (
-                'first_name',
-                'last_name',
-                'national_id',
-                'date_of_birth',
-                'profile_picture',
-            )
-        }),
-        (_('Verification Status'), {
-            'fields': (
-                'id_verification_status',
-                'email_verified',
-                'phone_verified',
-            )
-        }),
-        (_('Permissions'), {
-            'fields': (
-                'is_active',
-                'is_staff',
-                'is_superuser',
-                'groups',
-                'user_permissions',
-            )
-        }),
-        (_('Security'), {
-            'fields': (
-                'two_factor_enabled',
-                'failed_login_attempts',
-                'account_locked_until',
-            )
-        }),
-        (_('Preferences'), {
-            'fields': (
-                'preferred_language',
-                'notification_preferences',
-            )
-        }),
-        (_('Trust & Reputation'), {
-            'fields': ('trust_score',)
-        }),
-        (_('Important Dates'), {
-            'fields': ('last_login', 'date_joined')
-        }),
+        (None, {'fields': ('email', 'phone_number', 'password')}),
+        (_('Personal Information'), {'fields': ('first_name', 'last_name', 'national_id', 'date_of_birth', 'profile_picture')}),
+        (_('Verification Status'), {'fields': ('id_verification_status', 'email_verified', 'phone_verified')}),
+        (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        (_('Security'), {'fields': ('two_factor_enabled', 'failed_login_attempts', 'account_locked_until')}),
+        (_('Preferences'), {'fields': ('preferred_language', 'notification_preferences')}),
+        (_('Trust & Reputation'), {'fields': ('trust_score',)}),
+        (_('Important Dates'), {'fields': ('last_login', 'date_joined')}),
     )
 
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': (
-                'email',
-                'phone_number',
-                'first_name',
-                'last_name',
-                'password1',
-                'password2',
-                'is_staff',
-                'is_superuser',
-            ),
+            'fields': ('email', 'phone_number', 'first_name', 'last_name', 'password1', 'password2', 'is_staff', 'is_superuser'),
         }),
     )
 
     inlines = [UserRoleInline, UserProfileInline, LoginHistoryInline]
-
     readonly_fields = ('last_login', 'date_joined', 'trust_score')
-
-    def get_readonly_fields(self, request, obj=None):
-        readonly_fields = list(super().get_readonly_fields(request, obj))
-        if obj:
-            readonly_fields.extend(['email', 'phone_number', 'national_id'])
-        return readonly_fields
 
 
 @admin.register(UserRole)
@@ -153,8 +68,7 @@ class UserRoleAdmin(admin.ModelAdmin):
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'occupation', 'risk_tolerance', 'investment_experience')
-    search_fields = ('user__email', 'user__first_name')
-    list_filter = ('risk_tolerance', 'investment_experience')
+    search_fields = ('user__email',)
 
 
 @admin.register(LoginHistory)

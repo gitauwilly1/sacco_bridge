@@ -1,8 +1,7 @@
 import uuid
 import hashlib
 import hmac
-import base64
-from datetime import datetime, timedelta
+from decimal import Decimal
 from django.utils import timezone
 from django.conf import settings
 from cryptography.fernet import Fernet
@@ -32,8 +31,6 @@ def generate_otp(length=6):
 
 
 def calculate_settlement_fee(amount):
-    from decimal import Decimal
-
     amount = Decimal(str(amount))
     minimum_fee = Decimal('100.00')
     maximum_fee = Decimal('10000.00')
@@ -56,8 +53,6 @@ def calculate_settlement_fee(amount):
 
 
 def calculate_loan_interest(principal, interest_rate, duration_months):
-    from decimal import Decimal
-
     principal = Decimal(str(principal))
     rate = Decimal(str(interest_rate)) / Decimal('100')
     duration = Decimal(str(duration_months))
@@ -93,8 +88,6 @@ def mask_email(email):
 
 
 def format_kes_amount(amount):
-    from decimal import Decimal
-
     amount = Decimal(str(amount))
     if amount >= 0:
         parts = f"{amount:,.2f}".split('.')
@@ -119,11 +112,7 @@ def decrypt_data(encrypted_data):
 
 def generate_signature(payload, secret):
     message = '&'.join(f"{k}={v}" for k, v in sorted(payload.items()))
-    signature = hmac.new(
-        secret.encode(),
-        message.encode(),
-        hashlib.sha256
-    ).hexdigest()
+    signature = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
     return signature
 
 

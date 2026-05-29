@@ -59,3 +59,16 @@ pytest-django==4.8.0
 pytest-cov==5.0.0
 factory-boy==3.3.0
 coverage==7.6.1
+
+# Google Auth
+google-auth==2.32.0
+
+# QR Code & 2FA
+pyotp==2.9.0
+qrcode==7.4.2
+
+# Encryption
+cryptography==42.0.8
+
+# Africa's Talking
+africastalking==3.4.8

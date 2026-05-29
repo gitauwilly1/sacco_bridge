@@ -2,4 +2,10 @@ from django.apps import AppConfig
 
 
 class UsersConfig(AppConfig):
-    name = 'users'
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.users'
+    verbose_name = 'Users'
+    label = 'users'
+
+    def ready(self):
+        import apps.users.signals

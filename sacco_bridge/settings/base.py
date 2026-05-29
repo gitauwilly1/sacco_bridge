@@ -1,10 +1,3 @@
-"""
-Django base settings for Sacco Bridge.
-
-This module contains all base configuration shared across
-development, staging, and production environments.
-"""
-
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -67,6 +60,7 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
+    'apps.core',
     'apps.users',
     'apps.chamas',
     'apps.investments',
@@ -93,6 +87,7 @@ MIDDLEWARE = [
     'auditlog.middleware.AuditlogMiddleware',
     'apps.core.middleware.RequestLoggingMiddleware',
     'apps.core.middleware.APIVersionMiddleware',
+    'apps.core.middleware.SecurityHeadersMiddleware',
 ]
 
 ROOT_URLCONF = 'sacco_bridge.urls'
@@ -213,31 +208,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Site ID for django.contrib.sites
 SITE_ID = 1
 
+# Frontend URL for email links
+FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:3000')
+
+# Default from email
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@saccobridge.co.ke')
+
 # CORS configuration
-CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
+CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-])
+]
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
 
 # REST Framework configuration
 REST_FRAMEWORK = {
@@ -317,11 +299,6 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-# Two-Factor Authentication
-TWO_FACTOR_PATCH_ADMIN = True
-TWO_FACTOR_CALL_GATEWAY = 'two_factor.gateways.fake.Fake'
-TWO_FACTOR_SMS_GATEWAY = 'apps.notifications.gateways.AfricasTalkingGateway'
-
 # Axes configuration (Brute force protection)
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=30)
@@ -329,36 +306,12 @@ AXES_LOCKOUT_CALLABLE = 'apps.users.callbacks.user_locked_out'
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_URL = '/api/v1/auth/locked-out/'
 
-# Audit log configuration
-AUDITLOG_INCLUDE_TRACKING_MODELS = (
-    'users.User',
-    'chamas.Chama',
-    'chamas.Contribution',
-    'investments.SACCOShare',
-    'transactions.SettlementIntent',
-)
-
 # Spectacular settings for OpenAPI/Swagger
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Sacco Bridge API',
     'DESCRIPTION': '''
-    Sacco Bridge is a dual-mode platform that digitizes chama (informal savings group) 
-    management and facilitates secondary market liquidity for SACCO shares.
-    
-    ## Key Features
-    - Chama digitization with automated M-Pesa contribution tracking
-    - Digital loan management within chamas
-    - SACCO share liquidity connections between verified buyers and sellers
-    - Atomic settlement coordination with trustee-backed guarantees
-    - Structured dispute resolution with immutable audit trails
-    
-    ## Authentication
-    All API endpoints (except registration and login) require JWT authentication.
-    Include the token in the Authorization header: `Bearer <your-token>`
-    
-    ## Rate Limiting
-    - Anonymous: 100 requests/hour
-    - Authenticated: 1000 requests/hour
+    Sacco Bridge is a dual-mode platform that digitizes chama management 
+    and facilitates secondary market liquidity for SACCO shares.
     ''',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -372,18 +325,10 @@ SPECTACULAR_SETTINGS = {
             }
         }
     ],
-    'TAGS': [
-        {'name': 'Authentication', 'description': 'User registration, login, and token management'},
-        {'name': 'Users', 'description': 'User profile management and settings'},
-        {'name': 'Chamas', 'description': 'Chama creation, management, and member operations'},
-        {'name': 'Contributions', 'description': 'Chama contribution tracking and M-Pesa integration'},
-        {'name': 'Loans', 'description': 'Chama loan requests, approvals, and repayments'},
-        {'name': 'Investments', 'description': 'SACCO share liquidity requests and connections'},
-        {'name': 'Settlements', 'description': 'Transaction settlement tracking and dispute resolution'},
-        {'name': 'Notifications', 'description': 'Push notifications, SMS, and email alerts'},
-        {'name': 'Analytics', 'description': 'Platform analytics and reporting'},
-    ],
 }
+
+# Encryption key for sensitive data
+ENCRYPTION_KEY = env('ENCRYPTION_KEY')
 
 # Logging configuration
 LOGGING = {
@@ -407,7 +352,7 @@ LOGGING = {
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': BASE_DIR / 'logs' / 'sacco_bridge.log',
-            'maxBytes': 10485760,  # 10MB
+            'maxBytes': 10485760,
             'backupCount': 10,
             'formatter': 'verbose',
         },
@@ -431,7 +376,6 @@ LOGGING = {
 }
 
 # Session and security settings
-SESSION_COOKIE_AGE = 1800  # 30 minutes
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -441,6 +385,3 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
-SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
-SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
-SECURE_HSTS_PRELOAD = not DEBUG

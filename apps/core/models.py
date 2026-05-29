@@ -24,10 +24,6 @@ class TimeStampedModel(models.Model):
 
 
 class UUIDModel(models.Model):
-    """
-    Abstract base model that provides a UUID primary key field
-    instead of the default auto-incrementing integer.
-    """
 
     id = models.UUIDField(
         primary_key=True,
@@ -65,18 +61,12 @@ class SoftDeleteModel(models.Model):
         abstract = True
 
     def soft_delete(self, deleted_by=None):
-        """
-        Mark the record as deleted without removing it from the database.
-        """
         self.is_deleted = True
         self.deleted_at = timezone.now()
         self.deleted_by = deleted_by
         self.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by'])
 
     def restore(self):
-        """
-        Restore a soft-deleted record.
-        """
         self.is_deleted = False
         self.deleted_at = None
         self.deleted_by = None
@@ -109,36 +99,11 @@ class BaseModel(UUIDModel, TimeStampedModel, SoftDeleteModel):
 
 class AddressMixin(models.Model):
 
-    address_line_1 = models.CharField(
-        max_length=255,
-        blank=True,
-        default='',
-        help_text=_("Primary address line.")
-    )
-    address_line_2 = models.CharField(
-        max_length=255,
-        blank=True,
-        default='',
-        help_text=_("Secondary address line.")
-    )
-    city = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        help_text=_("City or town.")
-    )
-    county = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        help_text=_("County of residence.")
-    )
-    postal_code = models.CharField(
-        max_length=20,
-        blank=True,
-        default='',
-        help_text=_("Postal code.")
-    )
+    address_line_1 = models.CharField(max_length=255, blank=True, default='')
+    address_line_2 = models.CharField(max_length=255, blank=True, default='')
+    city = models.CharField(max_length=100, blank=True, default='')
+    county = models.CharField(max_length=100, blank=True, default='')
+    postal_code = models.CharField(max_length=20, blank=True, default='')
 
     class Meta:
         abstract = True
@@ -146,23 +111,9 @@ class AddressMixin(models.Model):
 
 class ContactMixin(models.Model):
 
-    phone_number = models.CharField(
-        max_length=20,
-        blank=True,
-        default='',
-        help_text=_("Primary phone number in international format.")
-    )
-    alternative_phone_number = models.CharField(
-        max_length=20,
-        blank=True,
-        default='',
-        help_text=_("Alternative phone number.")
-    )
-    email = models.EmailField(
-        blank=True,
-        default='',
-        help_text=_("Email address.")
-    )
+    phone_number = models.CharField(max_length=20, blank=True, default='')
+    alternative_phone_number = models.CharField(max_length=20, blank=True, default='')
+    email = models.EmailField(blank=True, default='')
 
     class Meta:
         abstract = True

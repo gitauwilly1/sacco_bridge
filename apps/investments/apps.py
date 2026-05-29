@@ -1,5 +1,7 @@
 from django.apps import AppConfig
 
-
 class InvestmentsConfig(AppConfig):
-    name = 'investments'
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.investments'
+    verbose_name = 'Investments'
+    label = 'investments'

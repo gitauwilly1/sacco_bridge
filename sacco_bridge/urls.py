@@ -8,7 +8,6 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 
-
 urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),

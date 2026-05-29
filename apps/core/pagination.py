@@ -29,12 +29,10 @@ class CustomPagination(PageNumberPagination):
 
 
 class SmallPagination(CustomPagination):
-
     page_size = 10
     max_page_size = 50
 
 
 class LargePagination(CustomPagination):
-
     page_size = 50
     max_page_size = 200

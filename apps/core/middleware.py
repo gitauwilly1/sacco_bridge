@@ -1,7 +1,6 @@
 import uuid
 import time
 import logging
-from django.utils import timezone
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -17,9 +16,7 @@ class RequestLoggingMiddleware:
         request.request_id = str(uuid.uuid4())
 
         self.log_request(request)
-
         response = self.get_response(request)
-
         self.log_response(request, response)
 
         response['X-Request-ID'] = request.request_id
@@ -42,15 +39,12 @@ class RequestLoggingMiddleware:
 
     def log_response(self, request, response):
         duration = self.calculate_request_time(request)
-
         logger.info(
-            f"Request completed: {request.method} {request.get_full_path()} "
-            f"- {response.status_code} ({duration:.3f}s)",
+            f"Request completed: {request.method} {request.get_full_path()} - {response.status_code} ({duration:.3f}s)",
             extra={
                 'request_id': request.request_id,
                 'status_code': response.status_code,
                 'duration': duration,
-                'content_length': len(response.content) if hasattr(response, 'content') else 0,
             }
         )
 
@@ -60,10 +54,8 @@ class RequestLoggingMiddleware:
     def get_client_ip(self, request):
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0].strip()
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')
 
 
 class APIVersionMiddleware:
@@ -78,23 +70,17 @@ class APIVersionMiddleware:
 
         if api_version not in self.SUPPORTED_VERSIONS:
             from django.http import JsonResponse
-            return JsonResponse(
-                {
-                    'success': False,
-                    'error': {
-                        'code': 'unsupported_api_version',
-                        'message': f'API version {api_version} is not supported. '
-                                   f'Supported versions: {", ".join(self.SUPPORTED_VERSIONS)}',
-                    }
-                },
-                status=400
-            )
+            return JsonResponse({
+                'success': False,
+                'error': {
+                    'code': 'unsupported_api_version',
+                    'message': f'API version {api_version} is not supported.'
+                }
+            }, status=400)
 
         request.api_version = api_version
-
         response = self.get_response(request)
         response['X-API-Version'] = api_version
-
         return response
 
 
@@ -105,19 +91,10 @@ class SecurityHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-
         response['X-Content-Type-Options'] = 'nosniff'
         response['X-Frame-Options'] = 'DENY'
         response['X-XSS-Protection'] = '1; mode=block'
         response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        response['Permissions-Policy'] = (
-            'camera=(), microphone=(), geolocation=(), '
-            'interest-cohort=()'
-        )
-
         if not settings.DEBUG:
-            response['Strict-Transport-Security'] = (
-                'max-age=31536000; includeSubDomains; preload'
-            )
-
+            response['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
         return response
