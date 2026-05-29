@@ -7,6 +7,7 @@ from apps.users.models import User, UserRole, UserProfile, LoginHistory
 class UserRoleInline(admin.TabularInline):
     model = UserRole
     extra = 0
+    fk_name = 'user'
     fields = ('role', 'assigned_by', 'is_active', 'expires_at', 'assigned_at')
     readonly_fields = ('assigned_at',)
     autocomplete_fields = ('assigned_by',)

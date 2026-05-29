@@ -45,9 +45,6 @@ THIRD_PARTY_APPS = [
     'allauth.socialaccount.providers.google',
     'dj_rest_auth',
     'dj_rest_auth.registration',
-    'django_otp',
-    'django_otp.plugins.otp_totp',
-    'two_factor',
     'axes',
     'guardian',
     'drf_spectacular',
@@ -80,7 +77,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django_otp.middleware.OTPMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'axes.middleware.AxesMiddleware',
@@ -89,7 +86,6 @@ MIDDLEWARE = [
     'apps.core.middleware.APIVersionMiddleware',
     'apps.core.middleware.SecurityHeadersMiddleware',
 ]
-
 ROOT_URLCONF = 'sacco_bridge.urls'
 
 TEMPLATES = [
@@ -304,6 +300,7 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=30)
 AXES_LOCKOUT_CALLABLE = 'apps.users.callbacks.user_locked_out'
 AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_PARAMETERS = ['username']
 AXES_LOCKOUT_URL = '/api/v1/auth/locked-out/'
 
 # Spectacular settings for OpenAPI/Swagger

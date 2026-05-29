@@ -13,9 +13,10 @@ djangorestframework-simplejwt==5.3.1
 django-allauth==0.63.3
 dj-rest-auth==6.0.0
 django-otp==1.4.0
-django-two-factor-auth==1.16.0
-django-axes==6.4.1
+# django-axes==6.4.1
 django-guardian==2.4.0
+phonenumbers==8.13.42
+django-phonenumber-field==8.0.0
 
 # API Documentation
 drf-spectacular==0.27.2
@@ -34,10 +35,6 @@ channels-redis==4.2.0
 # File Handling
 pillow==10.4.0
 django-storages==1.14.4
-
-# Serialization & Validation
-marshmallow==3.21.3
-pydantic==2.8.2
 
 # Utilities
 python-decouple==3.8
@@ -71,4 +68,8 @@ qrcode==7.4.2
 cryptography==42.0.8
 
 # Africa's Talking
-africastalking==3.4.8
+# africastalking==3.4.8
+
+# HTTP Client
+requests==2.32.3
+httpx==0.27.0
