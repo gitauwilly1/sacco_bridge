@@ -1,7 +1,3 @@
-"""
-URL configuration for the Analytics application.
-"""
-
 from django.urls import path
 from apps.analytics.views import (
     PlatformDashboardView, UserDashboardView,

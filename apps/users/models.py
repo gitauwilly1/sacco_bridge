@@ -59,7 +59,7 @@ class IDVerificationStatus(models.TextChoices):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-\
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(max_length=255, unique=True, db_index=True)
     phone_number = models.CharField(
@@ -91,7 +91,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     totp_secret = models.CharField(max_length=255, blank=True, default='')
     two_factor_enabled = models.BooleanField(default=False)
     preferred_language = models.CharField(max_length=10, default='en', choices=[('en', 'English'), ('sw', 'Kiswahili')])
-    notification_preferences = models.JSONField(default=dict)
+
+    # Renamed from notification_preferences to notification_settings
+    # to avoid conflict with NotificationPreference reverse relation
+    notification_settings = models.JSONField(
+        default=dict,
+        help_text=_("User's notification channel preferences as a JSON object.")
+    )
+
     trust_score = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
 
     objects = UserManager()

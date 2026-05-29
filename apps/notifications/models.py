@@ -39,7 +39,6 @@ class NotificationCategory(models.TextChoices):
 
 
 class DeliveryStatus(models.TextChoices):
-    """Delivery status for notifications."""
 
     PENDING = 'PENDING', _('Pending')
     SENT = 'SENT', _('Sent')
@@ -49,12 +48,6 @@ class DeliveryStatus(models.TextChoices):
 
 
 class NotificationTemplate(models.Model):
-    """
-    Predefined notification templates for consistent messaging.
-
-    Templates are used to generate notifications with consistent
-    formatting, translations, and channel-specific content.
-    """
 
     name = models.CharField(
         max_length=100,
@@ -244,7 +237,6 @@ class Notification(BaseModel):
         return f"Notification for {self.user.email}: {self.title}"
 
     def mark_as_read(self):
-        """Mark notification as read."""
         self.is_read = True
         self.read_at = timezone.now()
         self.save(update_fields=['is_read', 'read_at'])
@@ -388,7 +380,7 @@ class NotificationPreference(models.Model):
     user = models.ForeignKey(
         'users.User',
         on_delete=models.CASCADE,
-        related_name='notification_preferences',
+        related_name='notif_preferences',
         help_text=_("The user.")
     )
 

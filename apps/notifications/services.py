@@ -22,7 +22,6 @@ class FirebaseService:
 
     @classmethod
     def initialize(cls):
-        """Initialize Firebase Admin SDK if not already initialized."""
         if cls._initialized:
             return
 

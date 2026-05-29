@@ -6,8 +6,8 @@ from apps.users.models import User, UserRole, UserProfile, LoginHistory
 
 class UserRoleInline(admin.TabularInline):
     model = UserRole
-    extra = 0
     fk_name = 'user'
+    extra = 0
     fields = ('role', 'assigned_by', 'is_active', 'expires_at', 'assigned_at')
     readonly_fields = ('assigned_at',)
     autocomplete_fields = ('assigned_by',)
@@ -31,26 +31,49 @@ class LoginHistoryInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['email', 'phone_number', 'get_full_name', 'is_active', 'is_staff', 'id_verification_status', 'trust_score', 'date_joined']
-    list_filter = ['is_active', 'is_staff', 'id_verification_status', 'email_verified', 'phone_verified', 'two_factor_enabled', 'date_joined']
+    list_display = [
+        'email', 'phone_number', 'get_full_name', 'is_active',
+        'is_staff', 'id_verification_status', 'trust_score', 'date_joined'
+    ]
+    list_filter = [
+        'is_active', 'is_staff', 'id_verification_status',
+        'email_verified', 'phone_verified', 'two_factor_enabled', 'date_joined'
+    ]
     search_fields = ['email', 'phone_number', 'first_name', 'last_name', 'national_id']
     ordering = ['-date_joined']
 
     fieldsets = (
         (None, {'fields': ('email', 'phone_number', 'password')}),
-        (_('Personal Information'), {'fields': ('first_name', 'last_name', 'national_id', 'date_of_birth', 'profile_picture')}),
-        (_('Verification Status'), {'fields': ('id_verification_status', 'email_verified', 'phone_verified')}),
-        (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
-        (_('Security'), {'fields': ('two_factor_enabled', 'failed_login_attempts', 'account_locked_until')}),
-        (_('Preferences'), {'fields': ('preferred_language', 'notification_preferences')}),
-        (_('Trust & Reputation'), {'fields': ('trust_score',)}),
-        (_('Important Dates'), {'fields': ('last_login', 'date_joined')}),
+        (_('Personal Information'), {
+            'fields': ('first_name', 'last_name', 'national_id', 'date_of_birth', 'profile_picture')
+        }),
+        (_('Verification Status'), {
+            'fields': ('id_verification_status', 'email_verified', 'phone_verified')
+        }),
+        (_('Permissions'), {
+            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')
+        }),
+        (_('Security'), {
+            'fields': ('two_factor_enabled', 'failed_login_attempts', 'account_locked_until')
+        }),
+        (_('Preferences'), {
+            'fields': ('preferred_language', 'notification_settings')
+        }),
+        (_('Trust & Reputation'), {
+            'fields': ('trust_score',)
+        }),
+        (_('Important Dates'), {
+            'fields': ('last_login', 'date_joined')
+        }),
     )
 
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'phone_number', 'first_name', 'last_name', 'password1', 'password2', 'is_staff', 'is_superuser'),
+            'fields': (
+                'email', 'phone_number', 'first_name', 'last_name',
+                'password1', 'password2', 'is_staff', 'is_superuser',
+            ),
         }),
     )
 

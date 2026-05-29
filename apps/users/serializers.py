@@ -224,7 +224,14 @@ class UserProfileSerializer(BaseSerializer, DynamicFieldsMixin):
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'phone_number', 'first_name', 'last_name', 'full_name', 'initials', 'profile_picture', 'date_of_birth', 'email_verified', 'phone_verified', 'id_verification_status', 'roles', 'trust_score', 'two_factor_enabled', 'preferred_language', 'date_joined', 'last_login']
+        fields = [
+            'id', 'email', 'phone_number', 'first_name', 'last_name',
+            'full_name', 'initials', 'profile_picture', 'date_of_birth',
+            'email_verified', 'phone_verified', 'id_verification_status',
+            'roles', 'trust_score', 'two_factor_enabled',
+            'preferred_language', 'notification_settings',
+            'date_joined', 'last_login',
+        ]
         read_only_fields = ['id', 'email', 'phone_number', 'email_verified', 'phone_verified', 'id_verification_status', 'trust_score', 'date_joined', 'last_login']
 
     def get_full_name(self, obj):
@@ -240,7 +247,11 @@ class UserProfileSerializer(BaseSerializer, DynamicFieldsMixin):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'profile_picture', 'date_of_birth', 'preferred_language', 'notification_preferences']
+        fields = [
+            'first_name', 'last_name', 'profile_picture',
+            'date_of_birth', 'preferred_language',
+            'notification_settings',
+        ]
 
 
 class UserProfileDetailSerializer(BaseSerializer):
