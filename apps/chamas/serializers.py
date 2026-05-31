@@ -1,4 +1,3 @@
-
 from decimal import Decimal
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -170,6 +169,7 @@ class ContributionCreateSerializer(serializers.ModelSerializer):
             data['expected_amount'] = chama.contribution_amount
         return data
 
+
 class LoanSerializer(BaseSerializer, DynamicFieldsMixin):
 
     borrower_name = serializers.SerializerMethodField()
@@ -261,7 +261,10 @@ class MeetingSerializer(BaseSerializer, DynamicFieldsMixin):
             'minutes', 'organizer', 'organizer_name',
             'attendee_count', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'chama', 'organizer', 'status', 'minutes',
+            'created_at', 'updated_at',
+        ]
 
     def get_organizer_name(self, obj):
         if obj.organizer:
