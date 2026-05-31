@@ -67,8 +67,8 @@ class Command(BaseCommand):
         """Create verified SACCOs with share classes and market data."""
         from apps.investments.models import (
             SACCO, SACCOShareClass, ShareClass, SASRATier, SACCOStatus,
-            SACCOMarketAnalytics
         )
+        from apps.analytics.models import SACCOMarketAnalytics
 
         saccos_data = [
             {
@@ -533,7 +533,7 @@ class Command(BaseCommand):
                     defaults={
                         'role': role,
                         'is_active': True,
-                        'member_since': date.today() - timedelta(days=random.randint(30, 730)),
+                        'joined_at': timezone.now() - timedelta(days=random.randint(30, 730)),
                     }
                 )
                 all_members.append(member)
