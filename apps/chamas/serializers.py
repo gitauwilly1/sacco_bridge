@@ -153,15 +153,22 @@ class ContributionCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contribution
         fields = [
-            'chama', 'member', 'amount', 'payment_method',
-            'payment_reference', 'period_start', 'period_end', 'notes',
+            'chama', 'member', 'amount', 'expected_amount',
+            'payment_method', 'payment_reference',
+            'period_start', 'period_end', 'notes',
         ]
+        read_only_fields = ['expected_amount']
 
     def validate_member(self, value):
         if not value.is_active:
             raise serializers.ValidationError(_('This member is not active in the chama.'))
         return value
 
+    def validate(self, data):
+        chama = data.get('chama')
+        if chama:
+            data['expected_amount'] = chama.contribution_amount
+        return data
 
 class LoanSerializer(BaseSerializer, DynamicFieldsMixin):
 
