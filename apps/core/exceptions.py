@@ -67,6 +67,29 @@ class PermissionDeniedError(SaccoBridgeException):
 
 
 def custom_exception_handler(exc, context):
+
+    # Handle SaccoBridge custom exceptions first
+    if isinstance(exc, SaccoBridgeException):
+        logger.error(
+            f"SaccoBridge Exception: {exc.message}",
+            extra={'code': exc.code, 'status_code': exc.status_code}
+        )
+        return Response(
+            {
+                'success': False,
+                'error': {
+                    'code': exc.code,
+                    'message': exc.message,
+                    'details': [],
+                },
+                'meta': {
+                    'timestamp': str(timezone.now()),
+                }
+            },
+            status=exc.status_code
+        )
+
+    # Handle DRF default exceptions
     response = exception_handler(exc, context)
 
     if response is not None:
