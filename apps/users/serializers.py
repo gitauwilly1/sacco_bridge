@@ -6,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework.exceptions import AuthenticationFailed
 
 from apps.core.serializers import BaseSerializer, DynamicFieldsMixin
 from apps.core.utils import generate_otp
@@ -87,42 +88,53 @@ class UserLoginSerializer(serializers.Serializer):
         try:
             user = User.objects.get(email__iexact=email)
         except User.DoesNotExist:
-            raise serializers.ValidationError({'email': _('No account found with this email address.')})
+            raise AuthenticationFailed(
+                _('No account found with this email address.'),
+                code='no_account'
+            )
 
         if user.is_account_locked():
             remaining = user.account_locked_until - timezone.now()
             minutes = int(remaining.total_seconds() / 60)
-            raise serializers.ValidationError({
-                'email': _('Account temporarily locked. Try again in %(minutes)d minutes.') % {'minutes': max(1, minutes)}
-            })
+            raise AuthenticationFailed(
+                _('Account temporarily locked. Try again in %(minutes)d minutes.') % {
+                    'minutes': max(1, minutes)
+                },
+                code='account_locked'
+            )
 
         if not user.is_active:
-            raise serializers.ValidationError({'email': _('This account has been deactivated.')})
+            raise AuthenticationFailed(
+                _('This account has been deactivated.'),
+                code='account_inactive'
+            )
 
         request = self.context.get('request')
-        user = authenticate(request=request, email=email, password=password)
+        authenticated_user = authenticate(request=request, email=email, password=password)
 
-        if not user:
+        if not authenticated_user:
             try:
                 user_obj = User.objects.get(email__iexact=email)
                 user_obj.increment_failed_login()
             except User.DoesNotExist:
                 pass
-            raise serializers.ValidationError({'password': _('Invalid email or password.')})
+            raise AuthenticationFailed(
+                _('Invalid email or password.'),
+                code='invalid_credentials'
+            )
 
-        user.reset_failed_login()
+        authenticated_user.reset_failed_login()
 
         LoginHistory.objects.create(
-            user=user,
+            user=authenticated_user,
             ip_address=self.context.get('ip_address', ''),
             user_agent=self.context.get('user_agent', ''),
             device_type=data.get('device_info', 'unknown'),
             login_successful=True
         )
 
-        data['user'] = user
+        data['user'] = authenticated_user
         return data
-
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 

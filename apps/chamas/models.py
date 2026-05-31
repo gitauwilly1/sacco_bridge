@@ -304,7 +304,13 @@ class Chama(BaseModel):
     def save(self, *args, **kwargs):
         if not self.slug:
             from django.utils.text import slugify
-            self.slug = slugify(self.name)
+            base_slug = slugify(self.name)
+            slug = base_slug
+            counter = 1
+            while Chama.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
         if not self.invite_code:
             self.invite_code = self._generate_invite_code()
         super().save(*args, **kwargs)

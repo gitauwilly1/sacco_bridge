@@ -29,6 +29,12 @@ class ChatSessionViewSet(ModelViewSet):
             is_deleted=False
         )
 
+    def perform_create(self, serializer):
+        serializer.save(
+            user=self.request.user,
+            created_by=self.request.user,
+        )
+
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
         session = self.get_object()
@@ -49,6 +55,7 @@ class ChatSessionViewSet(ModelViewSet):
             session=session,
             role='USER',
             content=user_message,
+            created_by=request.user,
         )
 
         history = list(
@@ -69,6 +76,7 @@ class ChatSessionViewSet(ModelViewSet):
             sources=response.get('sources', []),
             tokens_used=response.get('tokens_used', 0),
             ai_model='gemini-1.5-flash',
+            created_by=request.user,
         )
 
         session.total_tokens_used += response.get('tokens_used', 0)
@@ -92,6 +100,12 @@ class KnowledgeArticleViewSet(ModelViewSet):
 
     def get_queryset(self):
         return KnowledgeArticle.objects.filter(is_deleted=False)
+
+    def perform_create(self, serializer):
+        serializer.save(
+            authored_by=self.request.user,
+            created_by=self.request.user,
+        )
 
 
 class ChatbotContextView(APIView):

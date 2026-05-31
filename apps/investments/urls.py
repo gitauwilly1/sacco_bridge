@@ -1,12 +1,12 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 from apps.investments.views import (
     SACCOViewSet, SACCOHoldingViewSet,
     LiquidityRequestViewSet, OpportunityViewSet,
     ConnectionViewSet,
 )
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(r'saccos', SACCOViewSet, basename='sacco')
 router.register(r'holdings', SACCOHoldingViewSet, basename='holding')
 router.register(r'requests', LiquidityRequestViewSet, basename='liquidity-request')

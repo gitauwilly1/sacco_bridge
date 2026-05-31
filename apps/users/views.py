@@ -331,3 +331,42 @@ class LoginHistoryView(APIView):
         history = LoginHistory.objects.filter(user=request.user)[:limit]
         serializer = LoginHistorySerializer(history, many=True)
         return Response({'success': True, 'data': {'login_history': serializer.data, 'total_logins': LoginHistory.objects.filter(user=request.user).count()}})
+
+class DevVerifyUserView(APIView):
+    """
+    Development-only endpoint to verify a user's email and phone.
+    Remove in production.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        if not settings.DEBUG:
+            return Response(
+                {'success': False, 'error': {'message': 'Only available in DEBUG mode'}},
+                status=403
+            )
+
+        email = request.data.get('email')
+        if not email:
+            return Response(
+                {'success': False, 'error': {'message': 'Email required'}},
+                status=400
+            )
+
+        try:
+            user = User.objects.get(email__iexact=email)
+            user.email_verified = True
+            user.phone_verified = True
+            user.email_verification_code = ''
+            user.phone_verification_code = ''
+            user.save()
+            return Response({
+                'success': True,
+                'data': {'email': user.email, 'verified': True},
+                'message': 'User verified for development testing.'
+            })
+        except User.DoesNotExist:
+            return Response(
+                {'success': False, 'error': {'message': 'User not found'}},
+                status=404
+            )

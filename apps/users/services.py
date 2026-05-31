@@ -73,29 +73,75 @@ class AuthenticationService:
         user.phone_verification_code = otp
         user.phone_verification_expiry = timezone.now() + timezone.timedelta(hours=24)
         user.save(update_fields=['phone_verification_code', 'phone_verification_expiry'])
-        logger.info(f"Verification SMS queued for {user.phone_number}")
-        return otp
 
+        message = (
+            f"Your Sacco Bridge verification code is: {otp}. "
+            f"This code expires in 24 hours. Do not share it with anyone."
+        )
+
+        # Format phone number for Africa's Talking (remove leading 0, add +254)
+        phone = user.phone_number
+        if phone.startswith('0'):
+            phone = '+254' + phone[1:]
+        elif not phone.startswith('+'):
+            phone = '+254' + phone
+
+        # Try Africa's Talking first
+        try:
+            import africastalking
+
+            africastalking.initialize(
+                settings.AFRICASTALKING_USERNAME,
+                settings.AFRICASTALKING_API_KEY
+            )
+            sms = africastalking.SMS
+            response = sms.send(message, [phone])
+            logger.info(f"SMS sent to {phone}: {response}")
+            return otp
+
+        except Exception as e:
+            logger.warning(f"Africa's Talking SMS failed: {str(e)}")
+
+            # Fallback: print OTP to console for development
+            logger.info("=" * 60)
+            logger.info(f"DEVELOPMENT MODE - SMS OTP for {phone}: {otp}")
+            logger.info("=" * 60)
+            print(f"\n{'='*60}")
+            print(f"SMS OTP for {user.phone_number}: {otp}")
+            print(f"{'='*60}\n")
+
+            return otp
+    
     @staticmethod
     def send_password_reset_email(user):
         from django.contrib.auth.tokens import default_token_generator
         from django.utils.http import urlsafe_base64_encode
         from django.utils.encoding import force_bytes
 
-        token = default_token_generator.make_token(user)
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        reset_url = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
-
-        subject = _('Reset your password - Sacco Bridge')
-        html_message = render_to_string('emails/reset_password.html', {'user': user, 'reset_url': reset_url, 'expiry_hours': 24})
-
         try:
-            send_mail(subject=subject, message='', from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=[user.email], html_message=html_message, fail_silently=False)
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            reset_url = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
+
+            subject = _('Reset your password - Sacco Bridge')
+            html_message = render_to_string('emails/reset_password.html', {
+                'user': user,
+                'reset_url': reset_url,
+                'expiry_hours': 24,
+            })
+
+            send_mail(
+                subject=subject,
+                message='',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                html_message=html_message,
+                fail_silently=False,
+            )
             logger.info(f"Password reset email sent to {user.email}")
         except Exception as e:
             logger.error(f"Failed to send password reset email: {str(e)}")
-            raise
-
+            # Don't re-raise - password reset should not expose email delivery failures
 
 class TwoFactorService:
 

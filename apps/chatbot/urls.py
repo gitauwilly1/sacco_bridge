@@ -1,11 +1,11 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 from apps.chatbot.views import (
     ChatSessionViewSet, KnowledgeArticleViewSet,
     ChatbotContextView,
 )
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(r'sessions', ChatSessionViewSet, basename='chat-session')
 router.register(r'knowledge', KnowledgeArticleViewSet, basename='knowledge-article')
 

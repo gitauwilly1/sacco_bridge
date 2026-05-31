@@ -1,5 +1,6 @@
 import logging
 from rest_framework.views import exception_handler
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
@@ -67,20 +68,32 @@ class PermissionDeniedError(SaccoBridgeException):
 
 
 def custom_exception_handler(exc, context):
-
-    # Handle SaccoBridge custom exceptions first
-    if isinstance(exc, SaccoBridgeException):
-        logger.error(
-            f"SaccoBridge Exception: {exc.message}",
-            extra={'code': exc.code, 'status_code': exc.status_code}
+    from rest_framework.exceptions import AuthenticationFailed as DRFAuthenticationFailed
+    
+    # Handle DRF AuthenticationFailed (returns 401)
+    if isinstance(exc, DRFAuthenticationFailed):
+        return Response(
+            {
+                'success': False,
+                'error': {
+                    'code': exc.detail.code if hasattr(exc.detail, 'code') else 'authentication_failed',
+                    'message': str(exc.detail) if not hasattr(exc.detail, 'code') else str(exc.detail),
+                },
+                'meta': {
+                    'timestamp': str(timezone.now()),
+                }
+            },
+            status=status.HTTP_401_UNAUTHORIZED
         )
+    
+    # Handle SaccoBridge custom exceptions
+    if isinstance(exc, SaccoBridgeException):
         return Response(
             {
                 'success': False,
                 'error': {
                     'code': exc.code,
                     'message': exc.message,
-                    'details': [],
                 },
                 'meta': {
                     'timestamp': str(timezone.now()),
@@ -89,7 +102,7 @@ def custom_exception_handler(exc, context):
             status=exc.status_code
         )
 
-    # Handle DRF default exceptions
+    # Handle standard DRF exceptions
     response = exception_handler(exc, context)
 
     if response is not None:
@@ -101,6 +114,8 @@ def custom_exception_handler(exc, context):
                 if isinstance(value, list):
                     for item in value:
                         errors.append({'field': key, 'message': str(item), 'code': response.status_code})
+                elif key == 'detail':
+                    errors.append({'field': 'detail', 'message': str(value), 'code': response.status_code})
                 else:
                     errors.append({'field': key, 'message': str(value), 'code': response.status_code})
         elif isinstance(response.data, list):
