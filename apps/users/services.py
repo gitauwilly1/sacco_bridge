@@ -162,8 +162,8 @@ class GoogleAuthService:
         )
 
         if created:
-            from apps.users.models import UserProfile
-            UserProfile.objects.create(user=user)
+            # UserProfile is created automatically by the post_save signal.
+            # Do NOT call UserProfile.objects.create(user=user) here.
             logger.info(f"New user created via Google Auth: {email}")
         else:
             if not user.email_verified and google_data.get('email_verified'):

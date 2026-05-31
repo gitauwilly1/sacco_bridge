@@ -11,6 +11,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema
 
 from apps.core.exceptions import AuthenticationFailedError, VerificationError
+from apps.users.models import LoginHistory
 from apps.users.serializers import (
     UserRegistrationSerializer, UserLoginSerializer,
     EmailVerificationSerializer, PhoneVerificationSerializer,
@@ -24,7 +25,6 @@ from apps.users.services import AuthenticationService, TwoFactorService, GoogleA
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
-
 
 class RegistrationView(APIView):
 
@@ -64,6 +64,7 @@ class LoginView(APIView):
     @extend_schema(tags=['Authentication'], summary='User login', description='Authenticate user credentials and return JWT tokens.')
     def post(self, request):
         serializer = self.serializer_class(data=request.data, context={
+            'request': request,
             'ip_address': self.get_client_ip(request),
             'user_agent': request.META.get('HTTP_USER_AGENT', ''),
         })
@@ -95,7 +96,6 @@ class LoginView(APIView):
         if x_forwarded_for:
             return x_forwarded_for.split(',')[0].strip()
         return request.META.get('REMOTE_ADDR', '')
-
 
 class TwoFactorSetupView(APIView):
 

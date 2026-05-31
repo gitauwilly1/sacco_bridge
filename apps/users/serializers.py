@@ -61,7 +61,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password')
 
         user = User.objects.create_user(password=password, **validated_data)
-        UserProfile.objects.create(user=user)
+        # UserProfile is created automatically by the post_save signal.
+        # Do NOT call UserProfile.objects.create(user=user) here.
 
         user.email_verification_code = generate_otp()
         user.phone_verification_code = generate_otp()
@@ -98,7 +99,8 @@ class UserLoginSerializer(serializers.Serializer):
         if not user.is_active:
             raise serializers.ValidationError({'email': _('This account has been deactivated.')})
 
-        user = authenticate(email=email, password=password)
+        request = self.context.get('request')
+        user = authenticate(request=request, email=email, password=password)
 
         if not user:
             try:
