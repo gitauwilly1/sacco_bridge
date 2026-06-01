@@ -66,6 +66,7 @@ LOCAL_APPS = [
     'apps.notifications',
     'apps.analytics',
     'apps.chatbot',
+    'apps.mpesa',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -415,3 +416,10 @@ X_FRAME_OPTIONS = 'DENY'
 
 # Email backend - override with console for development
 EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+
+# M-Pesa Daraja API Configuration
+MPESA_CONSUMER_KEY = env('MPESA_CONSUMER_KEY')
+MPESA_CONSUMER_SECRET = env('MPESA_CONSUMER_SECRET')
+MPESA_PASSKEY = env('MPESA_PASSKEY')
+MPESA_SHORTCODE = env('MPESA_SHORTCODE')
+MPESA_CALLBACK_URL = env('MPESA_CALLBACK_URL')
