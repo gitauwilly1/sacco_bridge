@@ -232,6 +232,30 @@ class NotificationService:
             notification.channels_sent = sent_channels
             notification.save(update_fields=['channels_sent'])
 
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    f'notifications_{user.id}',
+                    {
+                        'type': 'notification.message',
+                        'data': {
+                            'id': str(notification.id),
+                            'title': notification.title,
+                            'body': notification.body,
+                            'category': notification.category,
+                            'action_url': notification.action_url,
+                            'created_at': str(notification.created_at),
+                        }
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"WebSocket notification push failed: {e}")
+
+
         logger.info(
             f"Notification {notification.id} created for user {user.email} "
             f"via channels: {sent_channels}"

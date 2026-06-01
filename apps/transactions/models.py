@@ -4,6 +4,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
+from asyncio.log import logger
 
 from apps.core.models import BaseModel, TimeStampedModel
 from apps.core.validators import validate_positive_amount, validate_share_quantity
@@ -361,6 +362,28 @@ class SettlementIntent(BaseModel):
             external_ref=external_ref,
             metadata=metadata or {},
         )
+
+            # Broadcast to WebSocket
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    f'settlement_{self.uuid}',
+                    {
+                        'type': 'settlement.update',
+                        'intent_id': str(self.uuid),
+                        'from_state': from_state,
+                        'to_state': new_state,
+                        'state_display': self.get_state_display(),
+                        'timestamp': str(timezone.now()),
+                        'message': f'Settlement moved to {self.get_state_display()}',
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"WebSocket broadcast failed for settlement {self.uuid}: {e}")
 
         return True
 

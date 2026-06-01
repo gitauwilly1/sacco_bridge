@@ -2,6 +2,13 @@ import uuid
 import time
 import logging
 from django.conf import settings
+from urllib.parse import parse_qs
+from channels.db import database_sync_to_async
+from django.contrib.auth.models import AnonymousUser
+from rest_framework_simplejwt.tokens import AccessToken
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +105,42 @@ class SecurityHeadersMiddleware:
         if not settings.DEBUG:
             response['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
         return response
+    
+
+@database_sync_to_async
+def get_user_from_token(token):
+    from django.contrib.auth import get_user_model
+    from django.contrib.auth.models import AnonymousUser
+    from rest_framework_simplejwt.tokens import AccessToken
+    from rest_framework_simplejwt.exceptions import TokenError
+
+    User = get_user_model()
+
+    try:
+        access_token = AccessToken(token)
+        user_id = access_token.get('user_id')
+        if user_id:
+            return User.objects.get(id=user_id, is_active=True)
+    except (TokenError, User.DoesNotExist, Exception):
+        pass
+
+    return AnonymousUser()
+class WebSocketAuthMiddleware:
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        from urllib.parse import parse_qs
+        from django.contrib.auth.models import AnonymousUser
+        
+        query_string = scope.get('query_string', b'').decode()
+        query_params = parse_qs(query_string)
+        token = query_params.get('token', [None])[0]
+
+        if token:
+            scope['user'] = await get_user_from_token(token)
+        else:
+            scope['user'] = AnonymousUser()
+
+        return await self.inner(scope, receive, send)

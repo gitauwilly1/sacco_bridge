@@ -141,3 +141,6 @@ wcwidth==0.7.0
 websockets==16.0
 whitenoise==6.7.0
 zope.interface==8.5
+channels==4.1.0
+daphne==4.1.2
+channels-redis==4.2.0
