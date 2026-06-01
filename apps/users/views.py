@@ -212,19 +212,56 @@ class GoogleAuthView(APIView):
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        google_data = serializer.validated_data['id_token']
+        id_token = serializer.validated_data['id_token']
 
         try:
-            user, created = GoogleAuthService.get_or_create_user(google_data)
+            # Verify the Google ID token and extract user info
+            from google.oauth2 import id_token as google_id_token
+            from google.auth.transport import requests as google_requests
+
+            try:
+                idinfo = google_id_token.verify_oauth2_token(
+                    id_token,
+                    google_requests.Request(),
+                    clock_skew_in_seconds=60
+                )
+
+                # Validate issuer
+                if idinfo['iss'] not in [
+                    'accounts.google.com',
+                    'https://accounts.google.com'
+                ]:
+                    raise AuthenticationFailedError(
+                        _('Invalid token issuer.')
+                    )
+
+            except ValueError as e:
+                raise AuthenticationFailedError(
+                    _('Invalid Google token: %(error)s') % {'error': str(e)}
+                )
+
+            # Pass the verified user info dict to get_or_create_user
+            user, created = GoogleAuthService.get_or_create_user(idinfo)
+
+        except AuthenticationFailedError:
+            raise
         except ValueError as e:
             raise AuthenticationFailedError(str(e))
+        except Exception as e:
+            logger.error(f"Google auth error: {str(e)}")
+            raise AuthenticationFailedError(
+                _('Google authentication failed. Please try again.')
+            )
 
         token_data = AuthenticationService.get_token_response(user)
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
 
-        return Response({'success': True, 'data': token_data, 'message': _('Google authentication successful')})
-
+        return Response({
+            'success': True,
+            'data': token_data,
+            'message': _('Google authentication successful'),
+        })
 
 class TokenRefreshViewCustom(TokenRefreshView):
 
