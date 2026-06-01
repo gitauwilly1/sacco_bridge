@@ -423,3 +423,72 @@ MPESA_CONSUMER_SECRET = env('MPESA_CONSUMER_SECRET')
 MPESA_PASSKEY = env('MPESA_PASSKEY')
 MPESA_SHORTCODE = env('MPESA_SHORTCODE')
 MPESA_CALLBACK_URL = env('MPESA_CALLBACK_URL')
+
+# CELERY BEAT SCHEDULE
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    # Settlement recovery - runs every 5 minutes
+    'recover-stuck-settlements': {
+        'task': 'apps.transactions.tasks.recover_stuck_settlements',
+        'schedule': crontab(minute='*/5'),
+        'options': {'queue': 'settlements'},
+    },
+
+    # Analytics aggregation - runs daily at 2:00 AM
+    'aggregate-platform-metrics': {
+        'task': 'apps.analytics.tasks.aggregate_daily_platform_metrics',
+        'schedule': crontab(hour=2, minute=0),
+        'options': {'queue': 'analytics'},
+    },
+
+    # SACCO disclosure check - runs daily at 8:00 AM
+    'check-sacco-disclosures': {
+        'task': 'apps.investments.tasks.check_stale_disclosures',
+        'schedule': crontab(hour=8, minute=0),
+        'options': {'queue': 'maintenance'},
+    },
+
+    # Contribution deadline reminders - runs daily at 7:00 AM
+    'contribution-deadline-reminders': {
+        'task': 'apps.chamas.tasks.send_contribution_reminders',
+        'schedule': crontab(hour=7, minute=0),
+        'options': {'queue': 'notifications'},
+    },
+
+    # Loan repayment reminders - runs daily at 8:00 AM
+    'loan-repayment-reminders': {
+        'task': 'apps.chamas.tasks.send_loan_repayment_reminders',
+        'schedule': crontab(hour=8, minute=0),
+        'options': {'queue': 'notifications'},
+    },
+
+    # M-Pesa reconciliation - runs every 30 minutes
+    'reconcile-mpesa-transactions': {
+        'task': 'apps.mpesa.tasks.reconcile_pending_mpesa_transactions',
+        'schedule': crontab(minute='*/30'),
+        'options': {'queue': 'payments'},
+    },
+
+    # Notification retry - runs every 10 minutes
+    'retry-failed-notifications': {
+        'task': 'apps.notifications.tasks.retry_failed_deliveries',
+        'schedule': crontab(minute='*/10'),
+        'options': {'queue': 'notifications'},
+    },
+
+    # Cleanup old data - runs weekly on Sunday at 3:00 AM
+    'cleanup-expired-data': {
+        'task': 'apps.core.tasks.cleanup_expired_data',
+        'schedule': crontab(hour=3, minute=0, day_of_week=0),
+        'options': {'queue': 'maintenance'},
+    },
+
+    # Chama analytics aggregation - runs weekly on Monday at 4:00 AM
+    'aggregate-chama-analytics': {
+        'task': 'apps.analytics.tasks.aggregate_weekly_chama_analytics',
+        'schedule': crontab(hour=4, minute=0, day_of_week=1),
+        'options': {'queue': 'analytics'},
+    },
+}
