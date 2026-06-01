@@ -4,7 +4,7 @@ from django.db import transaction as db_transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from apps.core import models
+from django.db import models as django_models
 from apps.core.utils import (
     generate_idempotency_key, calculate_settlement_fee
 )
@@ -273,7 +273,7 @@ class RecoveryService:
             stalled = SettlementIntent.objects.filter(
                 state=state,
                 updated_at__lt=cutoff,
-                retry_count__lt=models.F('max_retries'),
+                retry_count__lt=django_models.F('max_retries'),
                 is_deleted=False
             )
 
