@@ -1,28 +1,67 @@
-FROM python:3.12-slim
+# ============================================================
+# Sacco Bridge - Production Dockerfile
+# Multi-stage build for optimized image size
+# ============================================================
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV DJANGO_SETTINGS_MODULE=sacco_bridge.settings
+# ---- Stage 1: Build dependencies ----
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
+# Install system dependencies for building Python packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client \
     build-essential \
     libpq-dev \
+    libjpeg-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
 
-COPY . .
+# ---- Stage 2: Runtime ----
+FROM python:3.12-slim
 
-RUN mkdir -p /app/logs /app/media /app/staticfiles
+# Create non-root user
+RUN groupadd -r sacco && useradd -r -g sacco sacco
 
+WORKDIR /app
+
+# Install runtime system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libjpeg62-turbo \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy wheels from builder
+COPY --from=builder /app/wheels /wheels
+COPY --from=builder /app/requirements.txt .
+
+# Install Python packages from wheels
+RUN pip install --no-cache /wheels/* \
+    && rm -rf /wheels
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/media /app/staticfiles \
+    && chown -R sacco:sacco /app
+
+# Copy application code
+COPY --chown=sacco:sacco . .
+
+# Collect static files
+RUN python manage.py collectstatic --noinput || true
+
+# Switch to non-root user
+USER sacco
+
+# Expose port
 EXPOSE 8000
 
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/schema/ || exit 1
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "sacco_bridge.asgi:application"]
+# Default command (overridden in docker-compose for different services)
+CMD ["gunicorn", "sacco_bridge.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120"]
