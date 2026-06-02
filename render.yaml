@@ -11,9 +11,8 @@ services:
       python manage.py create_roles
       python manage.py create_notification_templates
     startCommand: |
-      celery -A sacco_bridge worker -l info -Q celery,settlements,analytics,maintenance,notifications,payments --detach &
-      celery -A sacco_bridge beat -l info --detach &
-      gunicorn sacco_bridge.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+      celery -A sacco_bridge worker -l info -Q celery,settlements,analytics,maintenance,notifications,payments --concurrency=1 --detach &
+      gunicorn sacco_bridge.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: sacco_bridge.settings.production
