@@ -31,10 +31,10 @@ jobs:
           images: ${{ secrets.DOCKER_USERNAME }}/sacco-bridge
           tags: |
             type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
+            type=raw,value=latest
 
       - name: Build and push
         uses: docker/build-push-action@v5

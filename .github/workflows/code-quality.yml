@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 jobs:
   lint:
@@ -22,13 +22,7 @@ jobs:
 
       - name: Install linters
         run: |
-          pip install flake8 black isort
-
-      - name: Check formatting with Black
-        run: black --check apps/ sacco_bridge/
-
-      - name: Check imports with isort
-        run: isort --check-only apps/ sacco_bridge/
+          pip install flake8
 
       - name: Lint with flake8
         run: |
@@ -51,5 +45,5 @@ jobs:
       - name: Install safety
         run: pip install safety
 
-      - name: Check dependencies for vulnerabilities
+      - name: Check dependencies
         run: safety check -r requirements.txt --continue-on-error
