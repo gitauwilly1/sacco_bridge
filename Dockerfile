@@ -43,18 +43,18 @@ COPY --from=builder /app/requirements.txt .
 RUN pip install --no-cache /wheels/* \
     && rm -rf /wheels
 
-# Create necessary directories
-RUN mkdir -p /app/logs /app/media /app/staticfiles \
-    && chown -R sacco:sacco /app
-
-# Copy application code
+# Copy application code (this creates files owned by sacco)
 COPY --chown=sacco:sacco . .
 
-# Collect static files
-RUN python manage.py collectstatic --noinput || true
+# Create necessary directories with correct ownership AFTER copy
+RUN mkdir -p /app/logs /app/media /app/staticfiles \
+    && chown sacco:sacco /app/logs /app/media /app/staticfiles
 
 # Switch to non-root user
 USER sacco
+
+# Collect static files
+RUN python manage.py collectstatic --noinput || true
 
 # Expose port
 EXPOSE 8000

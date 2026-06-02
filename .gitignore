@@ -56,4 +56,19 @@ coverage.xml
 # Redis
 dump.rdb
 
+# Credentials & Secrets
 credentials/
+*.pem
+*.key
+
+# Logs
+logs/
+
+# Test database
+test_db.sqlite3
+
+# Receipts (generated files)
+media/receipts/
+
+# Jupyter
+*.ipynb_checkpoints/

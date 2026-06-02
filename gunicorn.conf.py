@@ -1,5 +1,5 @@
-
 import multiprocessing
+import os
 
 # Server socket
 bind = "0.0.0.0:8000"
@@ -15,17 +15,17 @@ keepalive = 5
 # Process naming
 proc_name = "sacco_bridge"
 
-# Logging
-accesslog = "/app/logs/gunicorn_access.log"
-errorlog = "/app/logs/gunicorn_error.log"
-loglevel = "info"
+# Logging - use '-' for stdout/stderr (Docker collects these)
+accesslog = "-"
+errorlog = "-"
+loglevel = os.environ.get("GUNICORN_LOG_LEVEL", "info")
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 
 # Server mechanics
 daemon = False
-pidfile = "/tmp/gunicorn.pid"
-user = "sacco"
-group = "sacco"
+pidfile = None
+user = None
+group = None
 
 # SSL (uncomment for production)
 # keyfile = "/path/to/ssl/key.pem"

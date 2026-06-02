@@ -64,7 +64,7 @@ factory-boy==3.3.0
 coverage==7.6.1
 
 # Google Auth
-google-auth==2.32.0
+google-auth>=2.48.1
 
 # Firebase
 firebase-admin==6.5.0
