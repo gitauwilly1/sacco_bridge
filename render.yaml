@@ -1,5 +1,4 @@
 services:
-  # Django Web Service
   - type: web
     name: sacco-bridge-api
     runtime: python
@@ -11,7 +10,10 @@ services:
       python manage.py migrate
       python manage.py create_roles
       python manage.py create_notification_templates
-    startCommand: gunicorn sacco_bridge.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    startCommand: |
+      celery -A sacco_bridge worker -l info -Q celery,settlements,analytics,maintenance,notifications,payments --detach &
+      celery -A sacco_bridge beat -l info --detach &
+      gunicorn sacco_bridge.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: sacco_bridge.settings.production
@@ -31,7 +33,7 @@ services:
       - key: CELERY_RESULT_BACKEND
         value: redis://sacco-bridge-redis:6379/2
       - key: SECRET_KEY
-        generateValue: true
+        value: your-generated-secret-key
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
@@ -43,7 +45,7 @@ services:
       - key: EMAIL_BACKEND
         value: django.core.mail.backends.smtp.EmailBackend
       - key: ENCRYPTION_KEY
-        generateValue: true
+        value: your-generated-encryption-key
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
@@ -79,77 +81,10 @@ services:
       - key: SENTRY_DSN
         sync: false
 
-  # Redis for Celery & Caching
   - type: redis
     name: sacco-bridge-redis
     plan: free
     ipAllowList: []
-
-  # Celery Worker
-  - type: worker
-    name: sacco-bridge-worker
-    runtime: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: celery -A sacco_bridge worker -l info -Q celery,settlements,analytics,maintenance,notifications,payments
-    envVars:
-      - key: DJANGO_SETTINGS_MODULE
-        value: sacco_bridge.settings.production
-      - key: PYTHON_VERSION
-        value: 3.12.0
-      - key: DATABASE_URL
-        fromDatabase:
-          name: sacco-bridge-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          name: sacco-bridge-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_BROKER_URL
-        value: redis://sacco-bridge-redis:6379/1
-      - key: CELERY_RESULT_BACKEND
-        value: redis://sacco-bridge-redis:6379/2
-      - key: SECRET_KEY
-        sync: false
-      - key: DEBUG
-        value: false
-      - key: ALLOWED_HOSTS
-        value: .onrender.com
-      - key: ENCRYPTION_KEY
-        sync: false
-
-  # Celery Beat Scheduler
-  - type: worker
-    name: sacco-bridge-beat
-    runtime: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: celery -A sacco_bridge beat -l info
-    envVars:
-      - key: DJANGO_SETTINGS_MODULE
-        value: sacco_bridge.settings.production
-      - key: PYTHON_VERSION
-        value: 3.12.0
-      - key: DATABASE_URL
-        fromDatabase:
-          name: sacco-bridge-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          name: sacco-bridge-redis
-          type: redis
-          property: connectionString
-      - key: CELERY_BROKER_URL
-        value: redis://sacco-bridge-redis:6379/1
-      - key: CELERY_RESULT_BACKEND
-        value: redis://sacco-bridge-redis:6379/2
-      - key: SECRET_KEY
-        sync: false
-      - key: DEBUG
-        value: false
-      - key: ALLOWED_HOSTS
-        value: .onrender.com
 
 databases:
   - name: sacco-bridge-db
