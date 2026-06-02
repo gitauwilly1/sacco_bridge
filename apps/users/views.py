@@ -13,7 +13,7 @@ from drf_spectacular.utils import extend_schema
 from apps.core.exceptions import AuthenticationFailedError, VerificationError
 from apps.users.models import LoginHistory
 from apps.users.serializers import (
-    UserRegistrationSerializer, UserLoginSerializer,
+    PasswordResetConfirmSerializer, UserRegistrationSerializer, UserLoginSerializer,
     EmailVerificationSerializer, PhoneVerificationSerializer,
     ResendVerificationSerializer, GoogleAuthSerializer,
     TwoFactorSetupSerializer, PasswordChangeSerializer,
@@ -368,12 +368,79 @@ class LoginHistoryView(APIView):
         history = LoginHistory.objects.filter(user=request.user)[:limit]
         serializer = LoginHistorySerializer(history, many=True)
         return Response({'success': True, 'data': {'login_history': serializer.data, 'total_logins': LoginHistory.objects.filter(user=request.user).count()}})
+    
+
+class PasswordResetConfirmView(APIView):
+
+    permission_classes = [permissions.AllowAny]
+    serializer_class = PasswordResetConfirmSerializer
+
+    @extend_schema(
+        tags=['Authentication'],
+        summary='Confirm password reset',
+        description='Set a new password using the reset token from email.'
+    )
+    def post(self, request):
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_decode
+        from django.utils.encoding import force_str
+
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        token = serializer.validated_data['token']
+        new_password = serializer.validated_data['new_password']
+
+        # The token is passed alongside the uid in the format: <uid>/<token>/
+        # or the frontend sends them separately
+        uidb64 = request.data.get('uidb64', '')
+
+        if not uidb64:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'missing_uid',
+                    'message': _('User ID (uidb64) is required.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_token',
+                    'message': _('Invalid or expired reset link.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not default_token_generator.check_token(user, token):
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_token',
+                    'message': _('Invalid or expired reset token.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.failed_login_attempts = 0
+        user.account_locked_until = None
+        user.save()
+
+        logger.info(f"Password reset completed for user {user.email}")
+
+        return Response({
+            'success': True,
+            'data': {
+                'message': _('Password has been reset successfully. You can now login with your new password.')
+            },
+            'message': _('Password reset successful'),
+        })
 
 class DevVerifyUserView(APIView):
-    """
-    Development-only endpoint to verify a user's email and phone.
-    Remove in production.
-    """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):

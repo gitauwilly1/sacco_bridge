@@ -35,6 +35,7 @@ urlpatterns = [
     path('api/v1/analytics/', include('apps.analytics.urls')),
     path('api/v1/chatbot/', include('apps.chatbot.urls')),
     path('api/v1/payments/mpesa/', include('apps.mpesa.urls')),
+    path('api/v1/receipts/', include('apps.receipts.urls')),
 ]
 
 # Serve media files in development

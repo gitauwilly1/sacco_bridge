@@ -155,6 +155,29 @@ class SettlementService:
                 platform_fee=intent.platform_fee,
             )
 
+            try:
+                from apps.receipts.services import ReceiptPDFGenerator
+                from apps.receipts.models import ReceiptType
+
+                # Generate receipt for buyer
+                ReceiptPDFGenerator.generate_settlement_receipt(
+                    settlement=intent,
+                    user=intent.buyer,
+                    receipt_type=ReceiptType.SETTLEMENT_BUY,
+                    party_name=intent.seller.get_full_name(),
+                )
+
+                # Generate receipt for seller
+                ReceiptPDFGenerator.generate_settlement_receipt(
+                    settlement=intent,
+                    user=intent.seller,
+                    receipt_type=ReceiptType.SETTLEMENT_SELL,
+                    party_name=intent.buyer.get_full_name(),
+                )
+            except Exception as e:
+                logger.error(f"Failed to generate settlement receipts: {e}")
+
+                # Continue without blocking settlement finalization
             intent.transition_to(
                 SettlementState.LEDGER_FINALIZED,
                 SettlementEventTrigger.SYSTEM_MATCH

@@ -5,6 +5,7 @@ from apps.users.views import (
     ResendVerificationView, GoogleAuthView,
     TokenRefreshViewCustom, LogoutView,
     PasswordChangeView, PasswordResetRequestView,
+    PasswordResetConfirmView
 )
 
 urlpatterns = [
@@ -19,5 +20,6 @@ urlpatterns = [
     path('verify/resend/', ResendVerificationView.as_view(), name='auth-verify-resend'),
     path('password/change/', PasswordChangeView.as_view(), name='auth-password-change'),
     path('password/reset/', PasswordResetRequestView.as_view(), name='auth-password-reset'),
+    path('password/reset/confirm/', PasswordResetConfirmView.as_view(), name='auth-password-reset-confirm'),
     path('dev/verify/', DevVerifyUserView.as_view(), name='auth-dev-verify'),
 ]

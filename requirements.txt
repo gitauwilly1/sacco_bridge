@@ -28,7 +28,7 @@ diff-match-patch==20241021
 distro==1.9.0
 dj-database-url==2.2.0
 dj-rest-auth==6.0.0
-Django==5.0.7
+Django==6.0.5
 django-allauth==0.63.3
 django-auditlog==3.2.0
 django-axes==6.4.0
@@ -43,6 +43,7 @@ django-extensions==3.2.3
 django-filter==24.2
 django-formtools==2.6.1
 django-guardian==2.4.0
+django-health-check==4.4.1
 django-import-export==4.2.0
 django-otp==1.4.0
 django-phonenumber-field==8.0.0
@@ -52,7 +53,9 @@ django-timezone-field==7.2.1
 django-two-factor-auth==1.16.0
 djangorestframework==3.15.1
 djangorestframework-simplejwt==5.3.1
+dnspython==2.8.0
 drf-spectacular==0.27.2
+drf-spectacular-sidecar==2026.5.1
 factory-boy==3.3.0
 Faker==40.19.1
 firebase_admin==7.4.0
@@ -116,6 +119,7 @@ PyYAML==6.0.3
 qrcode==7.4.2
 redis==5.0.8
 referencing==0.37.0
+reportlab==4.5.1
 requests==2.32.3
 rpds-py==2026.5.1
 rsa==4.9.1
@@ -141,6 +145,3 @@ wcwidth==0.7.0
 websockets==16.0
 whitenoise==6.7.0
 zope.interface==8.5
-channels==4.1.0
-daphne==4.1.2
-channels-redis==4.2.0
