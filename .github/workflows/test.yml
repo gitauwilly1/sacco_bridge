@@ -1,0 +1,82 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sacco_bridge_test
+          POSTGRES_USER: sacco_bridge_user
+          POSTGRES_PASSWORD: sacco_bridge_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://sacco_bridge_user:sacco_bridge_password@localhost:5432/sacco_bridge_test
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      DJANGO_SETTINGS_MODULE: sacco_bridge.settings
+      SECRET_KEY: github-actions-test-secret-key
+      DEBUG: True
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      ENCRYPTION_KEY: d-q5wH98BjeWtIGBoxxsTFjzVg3b88O4ErGUSbS6lk8=
+      FRONTEND_URL: http://localhost:3000
+      DEFAULT_FROM_EMAIL: noreply@saccobridge.co.ke
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-django pytest-cov factory-boy
+
+      - name: Run migrations
+        run: |
+          python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts
+          python manage.py migrate
+
+      - name: Run tests with coverage
+        run: |
+          python -m pytest apps/ -v --cov=apps --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

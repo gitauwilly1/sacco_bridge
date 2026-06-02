@@ -1,0 +1,55 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linters
+        run: |
+          pip install flake8 black isort
+
+      - name: Check formatting with Black
+        run: black --check apps/ sacco_bridge/
+
+      - name: Check imports with isort
+        run: isort --check-only apps/ sacco_bridge/
+
+      - name: Lint with flake8
+        run: |
+          flake8 apps/ sacco_bridge/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 apps/ sacco_bridge/ --count --exit-zero --max-complexity=10 --statistics
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install safety
+        run: pip install safety
+
+      - name: Check dependencies for vulnerabilities
+        run: safety check -r requirements.txt --continue-on-error
