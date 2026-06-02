@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status, permissions, viewsets
+from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -368,3 +369,225 @@ class MeetingViewSet(viewsets.ModelViewSet):
             'data': MeetingAttendanceSerializer(attendance).data,
             'message': _('Attendance recorded.'),
         })
+
+class BulkContributionView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Contributions'],
+        summary='Record bulk contributions',
+        description='Record contributions for multiple members in a single request.',
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'contributions': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'member_id': {'type': 'string', 'format': 'uuid'},
+                                'amount': {'type': 'number'},
+                                'payment_method': {'type': 'string', 'enum': ['MPESA', 'CASH', 'BANK_TRANSFER', 'OTHER']},
+                                'payment_reference': {'type': 'string'},
+                                'notes': {'type': 'string'},
+                            },
+                            'required': ['member_id', 'amount']
+                        }
+                    },
+                    'period_start': {'type': 'string', 'format': 'date'},
+                    'period_end': {'type': 'string', 'format': 'date'},
+                },
+                'required': ['contributions', 'period_start', 'period_end']
+            }
+        }
+    )
+    def post(self, request, chama_pk):
+        from apps.chamas.models import Chama, ChamaMember, Contribution, ContributionStatus, PaymentMethod
+        from apps.chamas.serializers import ContributionSerializer
+        from apps.receipts.services import ReceiptPDFGenerator
+
+        # Validate chama exists and user is authorized
+        try:
+            chama = Chama.objects.get(id=chama_pk, is_deleted=False)
+        except Chama.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'not_found',
+                    'message': _('Chama not found.')
+                }
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if user is chama admin or treasurer
+        is_admin = chama.memberships.filter(
+            user=request.user,
+            is_active=True,
+            role__in=[
+                MemberRole.CHAIRPERSON,
+                MemberRole.TREASURER,
+                MemberRole.SECRETARY,
+            ]
+        ).exists()
+
+        if not is_admin and not chama.allow_member_contributions:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'permission_denied',
+                    'message': _('Only chama officials can record bulk contributions.')
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Validate request data
+        contributions_data = request.data.get('contributions', [])
+        period_start = request.data.get('period_start')
+        period_end = request.data.get('period_end')
+
+        if not contributions_data:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'validation_error',
+                    'message': _('At least one contribution is required.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not period_start or not period_end:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'validation_error',
+                    'message': _('period_start and period_end are required.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(contributions_data) > 100:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'limit_exceeded',
+                    'message': _('Maximum 100 contributions per bulk request.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Process each contribution
+        results = []
+        success_count = 0
+        failure_count = 0
+
+        with transaction.atomic():
+            for idx, contrib_data in enumerate(contributions_data):
+                result = {
+                    'index': idx,
+                    'member_id': contrib_data.get('member_id'),
+                    'status': 'pending',
+                }
+
+                try:
+                    # Validate member
+                    member_id = contrib_data.get('member_id')
+                    if not member_id:
+                        result['status'] = 'failed'
+                        result['error'] = _('member_id is required.')
+                        failure_count += 1
+                        results.append(result)
+                        continue
+
+                    try:
+                        member = ChamaMember.objects.get(
+                            id=member_id,
+                            chama=chama,
+                            is_active=True,
+                        )
+                    except ChamaMember.DoesNotExist:
+                        result['status'] = 'failed'
+                        result['error'] = _('Member not found or not active in this chama.')
+                        failure_count += 1
+                        results.append(result)
+                        continue
+
+                    # Validate amount
+                    amount = contrib_data.get('amount')
+                    if not amount or float(amount) <= 0:
+                        result['status'] = 'failed'
+                        result['error'] = _('Amount must be greater than zero.')
+                        failure_count += 1
+                        results.append(result)
+                        continue
+
+                    from decimal import Decimal
+                    amount = Decimal(str(amount))
+
+                    # Determine payment method
+                    payment_method = contrib_data.get(
+                        'payment_method',
+                        PaymentMethod.CASH
+                    )
+                    payment_reference = contrib_data.get('payment_reference', '')
+                    notes = contrib_data.get('notes', '')
+
+                    # Create contribution
+                    contribution = Contribution.objects.create(
+                        chama=chama,
+                        member=member,
+                        amount=amount,
+                        expected_amount=chama.contribution_amount,
+                        status=ContributionStatus.PAID,
+                        payment_method=payment_method,
+                        payment_reference=payment_reference,
+                        period_start=period_start,
+                        period_end=period_end,
+                        paid_at=timezone.now(),
+                        notes=notes,
+                    )
+
+                    # Update member stats
+                    member.total_contributions += amount
+                    member.current_balance += amount
+                    member.last_contribution_date = timezone.now().date()
+                    member.contribution_streak += 1
+                    member.is_overdue = False
+                    member.overdue_amount = Decimal('0.00')
+                    member.save()
+
+                    # Generate receipt
+                    try:
+                        ReceiptPDFGenerator.generate_contribution_receipt(
+                            contribution=contribution,
+                            user=member.user,
+                            chama_name=chama.name,
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to generate receipt: {e}")
+
+                    result['status'] = 'success'
+                    result['contribution_id'] = str(contribution.id)
+                    result['amount'] = str(amount)
+                    result['member_name'] = member.user.get_full_name()
+                    success_count += 1
+
+                except Exception as e:
+                    logger.error(f"Bulk contribution error at index {idx}: {e}")
+                    result['status'] = 'failed'
+                    result['error'] = str(e)
+                    failure_count += 1
+
+                results.append(result)
+
+            # Update chama financials
+            chama.update_financials()
+
+        return Response({
+            'success': True,
+            'data': {
+                'total': len(contributions_data),
+                'success_count': success_count,
+                'failure_count': failure_count,
+                'results': results,
+            },
+            'message': _(
+                'Bulk contribution recorded: %(success)d succeeded, %(failed)d failed.'
+            ) % {'success': success_count, 'failed': failure_count},
+        }, status=status.HTTP_200_OK if failure_count == 0 else status.HTTP_207_MULTI_STATUS)

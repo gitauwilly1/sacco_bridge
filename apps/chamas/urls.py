@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 from apps.chamas.views import (
     ChamaViewSet, ChamaMemberViewSet, ContributionViewSet,
-    LoanViewSet, MeetingViewSet,
+    LoanViewSet, MeetingViewSet,BulkContributionView,
 )
 
 router = SimpleRouter()
@@ -82,5 +82,10 @@ urlpatterns = [
         '<uuid:chama_pk>/meetings/<uuid:pk>/attendance/',
         MeetingViewSet.as_view({'post': 'record_attendance'}),
         name='chama-meeting-attendance'
+    ),
+    path(
+    '<uuid:chama_pk>/contributions/bulk/',
+    BulkContributionView.as_view(),
+    name='chama-contributions-bulk'
     ),
 ]
