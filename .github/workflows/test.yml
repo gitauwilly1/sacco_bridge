@@ -49,7 +49,20 @@ jobs:
       FRONTEND_URL: http://localhost:3000
       DEFAULT_FROM_EMAIL: noreply@saccobridge.co.ke
       EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
-
+      GOOGLE_CLIENT_ID: ci-test-client-id
+      GOOGLE_CLIENT_SECRET: ci-test-client-secret
+      AFRICASTALKING_USERNAME: sandbox
+      AFRICASTALKING_API_KEY: ci-test-api-key
+      MPESA_CONSUMER_KEY: ci-test-key
+      MPESA_CONSUMER_SECRET: ci-test-secret
+      MPESA_PASSKEY: ci-test-passkey
+      MPESA_SHORTCODE: 174379
+      MPESA_CALLBACK_URL: http://localhost:8000/callback/
+      GEMINI_API_KEY: ci-test-gemini-key
+      GEMINI_MODEL: gemini-1.5-flash
+      SENTRY_DSN: https://test@test.ingest.sentry.io/0
+      FIREBASE_CREDENTIALS_PATH: /tmp/fake-firebase.json
+      
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

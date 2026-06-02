@@ -17,7 +17,7 @@ from apps.core.pagination import SmallPagination
 from apps.chamas.models import (
     Chama, ChamaMember, Contribution, Loan, LoanRepayment,
     Meeting, MeetingAttendance, MemberRole, LoanStatus,
-    PaymentMethod,
+    PaymentMethod, ContributionStatus,
 )
 from apps.chamas.serializers import (
     ChamaSerializer, ChamaCreateSerializer, ChamaMemberSerializer,
