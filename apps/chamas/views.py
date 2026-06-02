@@ -421,17 +421,26 @@ class BulkContributionView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
 
         # Check if user is chama admin or treasurer
-        is_admin = chama.memberships.filter(
-            user=request.user,
-            is_active=True,
-            role__in=[
+        try:
+            user_membership = chama.memberships.get(
+                user=request.user,
+                is_active=True,
+            )
+            is_admin = user_membership.role in [
                 MemberRole.CHAIRPERSON,
                 MemberRole.TREASURER,
                 MemberRole.SECRETARY,
             ]
-        ).exists()
+        except ChamaMember.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'permission_denied',
+                    'message': _('You are not a member of this chama.')
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
 
-        if not is_admin and not chama.allow_member_contributions:
+        if not is_admin:
             return Response({
                 'success': False,
                 'error': {
