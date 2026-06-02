@@ -439,38 +439,3 @@ class PasswordResetConfirmView(APIView):
             },
             'message': _('Password reset successful'),
         })
-
-class DevVerifyUserView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        if not settings.DEBUG:
-            return Response(
-                {'success': False, 'error': {'message': 'Only available in DEBUG mode'}},
-                status=403
-            )
-
-        email = request.data.get('email')
-        if not email:
-            return Response(
-                {'success': False, 'error': {'message': 'Email required'}},
-                status=400
-            )
-
-        try:
-            user = User.objects.get(email__iexact=email)
-            user.email_verified = True
-            user.phone_verified = True
-            user.email_verification_code = ''
-            user.phone_verification_code = ''
-            user.save()
-            return Response({
-                'success': True,
-                'data': {'email': user.email, 'verified': True},
-                'message': 'User verified for development testing.'
-            })
-        except User.DoesNotExist:
-            return Response(
-                {'success': False, 'error': {'message': 'User not found'}},
-                status=404
-            )

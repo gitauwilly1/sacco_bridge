@@ -1,6 +1,6 @@
 from django.urls import path
 from apps.users.views import (
-    DevVerifyUserView, RegistrationView, LoginView, TwoFactorSetupView,
+    RegistrationView, LoginView, TwoFactorSetupView,
     EmailVerificationView, PhoneVerificationView,
     ResendVerificationView, GoogleAuthView,
     TokenRefreshViewCustom, LogoutView,
@@ -21,5 +21,4 @@ urlpatterns = [
     path('password/change/', PasswordChangeView.as_view(), name='auth-password-change'),
     path('password/reset/', PasswordResetRequestView.as_view(), name='auth-password-reset'),
     path('password/reset/confirm/', PasswordResetConfirmView.as_view(), name='auth-password-reset-confirm'),
-    path('dev/verify/', DevVerifyUserView.as_view(), name='auth-dev-verify'),
 ]
