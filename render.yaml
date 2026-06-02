@@ -10,6 +10,7 @@ services:
       python manage.py migrate
       python manage.py create_roles
       python manage.py create_notification_templates
+      python manage.py create_admin
     startCommand: |
       celery -A sacco_bridge worker -l info -Q celery,settlements,analytics,maintenance,notifications,payments --concurrency=1 --detach &
       gunicorn sacco_bridge.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120
@@ -79,6 +80,10 @@ services:
         value: gemini-1.5-flash
       - key: SENTRY_DSN
         sync: false
+      - key: ADMIN_EMAIL
+        value: admin@saccobridge.co.ke
+      - key: ADMIN_PASSWORD
+        value: AdminPass@2026
 
   - type: redis
     name: sacco-bridge-redis
