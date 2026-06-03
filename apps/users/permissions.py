@@ -43,17 +43,27 @@ class IsVerifiedUser(permissions.BasePermission):
 
 
 class IsChamaAdmin(permissions.BasePermission):
-    message = "Only chama officials (chairperson, treasurer, or secretary) can perform this action."
+    message = "Only chama officials (chairperson, treasurer, or secretary) of this chama can perform this action."
 
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-        return any([
-            request.user.has_role(Role.CHAMA_TREASURER),
-            request.user.has_role(Role.CHAMA_CHAIRPERSON),
-            request.user.has_role(Role.CHAMA_SECRETARY),
-        ])
 
+        chama_pk = view.kwargs.get('chama_pk')
+        if not chama_pk:
+            return False
+
+        from apps.chamas.models import ChamaMember, MemberRole
+        return ChamaMember.objects.filter(
+            chama_id=chama_pk,
+            user=request.user,
+            is_active=True,
+            role__in=[
+                MemberRole.CHAIRPERSON,
+                MemberRole.TREASURER,
+                MemberRole.SECRETARY,
+            ]
+        ).exists()
 
 class IsInvestorOrInstitutional(permissions.BasePermission):
     message = "Only verified investors or institutional buyers can access this feature."

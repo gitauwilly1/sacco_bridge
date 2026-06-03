@@ -40,10 +40,6 @@ class UserManager(BaseUserManager):
 class Role(models.TextChoices):
     PLATFORM_ADMIN = 'PLATFORM_ADMIN', _('Platform Administrator')
     SACCO_ADMIN = 'SACCO_ADMIN', _('SACCO Administrator')
-    CHAMA_TREASURER = 'CHAMA_TREASURER', _('Chama Treasurer')
-    CHAMA_CHAIRPERSON = 'CHAMA_CHAIRPERSON', _('Chama Chairperson')
-    CHAMA_SECRETARY = 'CHAMA_SECRETARY', _('Chama Secretary')
-    CHAMA_MEMBER = 'CHAMA_MEMBER', _('Chama Member')
     INVESTOR = 'INVESTOR', _('Investor')
     SELLER = 'SELLER', _('Seller')
     INSTITUTIONAL_BUYER = 'INSTITUTIONAL_BUYER', _('Institutional Buyer')
