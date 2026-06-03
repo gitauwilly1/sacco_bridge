@@ -19,7 +19,7 @@ from apps.users.serializers import (
     TwoFactorSetupSerializer, PasswordChangeSerializer,
     PasswordResetRequestSerializer, UserProfileSerializer,
     UserProfileUpdateSerializer, UserProfileDetailSerializer,
-    LoginHistorySerializer,
+    LoginHistorySerializer, PhoneNumberUpdateSerializer,
 )
 from apps.users.services import AuthenticationService, TwoFactorService, GoogleAuthService
 from apps.users.permissions import IsPlatformStaff
@@ -440,6 +440,54 @@ class PasswordResetConfirmView(APIView):
                 'message': _('Password has been reset successfully. You can now login with your new password.')
             },
             'message': _('Password reset successful'),
+        })
+
+class PhoneNumberUpdateView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Add phone number',
+        description='Add a phone number to your account and receive a verification code.'
+    )
+    def post(self, request):
+        serializer = PhoneNumberUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        phone_number = serializer.validated_data['phone_number']
+
+        # Check if user already has a verified phone
+        if request.user.phone_verified:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'already_verified',
+                    'message': _('Phone number is already verified.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update phone number
+        request.user.phone_number = phone_number
+        request.user.phone_verified = False
+
+        # Generate and send verification code
+        from apps.core.utils import generate_otp
+        otp = generate_otp()
+        request.user.phone_verification_code = otp
+        request.user.phone_verification_expiry = timezone.now() + timezone.timedelta(hours=24)
+        request.user.save()
+
+        # Send SMS
+        AuthenticationService.send_verification_sms(request.user)
+
+        return Response({
+            'success': True,
+            'data': {
+                'phone_number': phone_number,
+                'message': _('Phone number added. Verification code sent via SMS.'),
+            },
+            'message': _('Verification code sent.'),
         })
 
 class AdminUserManagementView(APIView):

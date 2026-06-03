@@ -208,12 +208,16 @@ class GoogleAuthService:
         )
 
         if created:
-            # UserProfile is created automatically by the post_save signal.
-            # Do NOT call UserProfile.objects.create(user=user) here.
+            # If phone_number is empty and conflicts, generate a placeholder
+            if not user.phone_number or User.objects.filter(phone_number='').exclude(id=user.id).exists():
+                import uuid
+                user.phone_number = f'google-{uuid.uuid4().hex[:12]}'
+                user.save(update_fields=['phone_number'])
             logger.info(f"New user created via Google Auth: {email}")
         else:
             if not user.email_verified and google_data.get('email_verified'):
                 user.email_verified = True
                 user.save(update_fields=['email_verified'])
+            logger.info(f"Existing user logged in via Google Auth: {email}")
 
         return user, created

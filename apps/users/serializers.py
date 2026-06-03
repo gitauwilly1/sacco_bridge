@@ -282,3 +282,16 @@ class LoginHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = LoginHistory
         fields = ['login_timestamp', 'ip_address', 'device_type', 'login_successful', 'failure_reason', 'location_city']
+
+
+class PhoneNumberUpdateSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(required=True)
+
+    def validate_phone_number(self, value):
+        import re
+        cleaned = re.sub(r'\s+', '', value)
+        if not re.match(r'^(?:\+?254|0)[17]\d{8}$', cleaned):
+            raise serializers.ValidationError(_('Enter a valid Kenyan phone number.'))
+        if User.objects.filter(phone_number=cleaned).exists():
+            raise serializers.ValidationError(_('A user with this phone number already exists.'))
+        return cleaned
