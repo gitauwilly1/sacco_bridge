@@ -16,6 +16,8 @@ class Command(BaseCommand):
             self.stdout.write('ADMIN_EMAIL or ADMIN_PASSWORD not set. Skipping.')
             return
 
+        from apps.users.models import Role
+
         user, created = User.objects.get_or_create(
             email=email,
             defaults={
@@ -32,9 +34,10 @@ class Command(BaseCommand):
         if created:
             user.set_password(password)
             user.save()
-            self.stdout.write(self.style.SUCCESS(f'Admin user {email} created.'))
+            user.add_role(Role.PLATFORM_ADMIN)
+            user.add_role(Role.SUPPORT_AGENT)
+            self.stdout.write(self.style.SUCCESS(f'Admin user {email} created with roles.'))
         else:
-            # Update existing admin - ensure verified and staff status
             updated = False
             if not user.email_verified:
                 user.email_verified = True
@@ -52,8 +55,16 @@ class Command(BaseCommand):
                 user.set_password(password)
                 updated = True
             
+            # Ensure roles are assigned
+            if not user.has_role(Role.PLATFORM_ADMIN):
+                user.add_role(Role.PLATFORM_ADMIN)
+                updated = True
+            if not user.has_role(Role.SUPPORT_AGENT):
+                user.add_role(Role.SUPPORT_AGENT)
+                updated = True
+
             if updated:
                 user.save()
-                self.stdout.write(self.style.SUCCESS(f'Admin user {email} updated (verified + staff).'))
+                self.stdout.write(self.style.SUCCESS(f'Admin user {email} updated with roles.'))
             else:
-                self.stdout.write(f'Admin user {email} already exists and is up to date.')
+                self.stdout.write(f'Admin user {email} already up to date.')
