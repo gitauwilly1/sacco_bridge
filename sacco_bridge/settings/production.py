@@ -37,3 +37,6 @@ if os.environ.get('SENTRY_DSN'):
         integrations=[DjangoIntegration()],
         traces_sample_rate=0.1,
     )
+
+# Cloudinary - always use in production
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'

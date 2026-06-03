@@ -85,3 +85,7 @@ google-genai>=1.0.0
 requests==2.32.3
 websockets>=13.0
 urllib3==2.6.0
+
+# Cloud Storage
+cloudinary==1.41.0
+django-cloudinary-storage==0.3.0

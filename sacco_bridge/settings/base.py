@@ -55,6 +55,8 @@ THIRD_PARTY_APPS = [
     'auditlog',
     'import_export',
     'django_extensions',
+    'cloudinary',
+    'cloudinary_storage',
 ]
 
 LOCAL_APPS = [
@@ -203,6 +205,23 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # Media files
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Cloudinary configuration
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': env('CLOUDINARY_CLOUD_NAME', default=''),
+    'API_KEY': env('CLOUDINARY_API_KEY', default=''),
+    'API_SECRET': env('CLOUDINARY_API_SECRET', default=''),
+}
+
+# Use Cloudinary for media files if configured
+CLOUDINARY_ENABLED = all([
+    env('CLOUDINARY_CLOUD_NAME', default=''),
+    env('CLOUDINARY_API_KEY', default=''),
+    env('CLOUDINARY_API_SECRET', default=''),
+])
+
+if CLOUDINARY_ENABLED:
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
