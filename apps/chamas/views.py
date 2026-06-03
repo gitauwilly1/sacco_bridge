@@ -129,7 +129,7 @@ class ChamaMemberViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         member = self.get_object()
-        if not IsChamaAdmin().has_permission(self.request, None):
+        if not IsChamaAdmin().has_permission(self.request, self):
             raise PermissionDeniedError(_('Only chama admins can change member roles.'))
         serializer.save()
 
@@ -168,10 +168,9 @@ class ContributionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def verify(self, request, chama_pk=None, pk=None):
-        """Verify a pending contribution (chama admin only)."""
         contribution = self.get_object()
 
-        if not IsChamaAdmin().has_permission(request, None):
+        if not IsChamaAdmin().has_permission(request, self):
             raise PermissionDeniedError()
 
         if contribution.status != ContributionStatus.PENDING:
@@ -241,7 +240,7 @@ class LoanViewSet(viewsets.ModelViewSet):
     def approve(self, request, chama_pk=None, pk=None):
         loan = self.get_object()
 
-        if not IsChamaAdmin().has_permission(request, None):
+        if not IsChamaAdmin().has_permission(request, self):
             raise PermissionDeniedError()
 
         if loan.status != LoanStatus.PENDING:
@@ -263,7 +262,7 @@ class LoanViewSet(viewsets.ModelViewSet):
     def disburse(self, request, chama_pk=None, pk=None):
         loan = self.get_object()
 
-        if not IsChamaAdmin().has_permission(request, None):
+        if not IsChamaAdmin().has_permission(request, self):
             raise PermissionDeniedError()
 
         if loan.status != LoanStatus.APPROVED:
