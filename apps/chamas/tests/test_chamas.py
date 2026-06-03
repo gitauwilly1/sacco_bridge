@@ -119,15 +119,11 @@ class TestContributions:
 class TestLoans:
 
     def setup_method(self):
-        from apps.users.models import UserRole, Role as GlobalRole
-        
         self.client = APIClient()
         self.user = UserFactory()
-        # Add global chama admin role for permission checks
-        UserRole.objects.create(user=self.user, role=GlobalRole.CHAMA_CHAIRPERSON)
         self.client.force_authenticate(user=self.user)
         self.chama = ChamaFactory()
-        # User must be a chama admin to approve/disburse
+        # User is the CHAIRPERSON of this chama (membership role)
         self.member = ChamaMemberFactory(
             chama=self.chama,
             user=self.user,
