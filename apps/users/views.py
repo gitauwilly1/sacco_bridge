@@ -22,6 +22,7 @@ from apps.users.serializers import (
     LoginHistorySerializer,
 )
 from apps.users.services import AuthenticationService, TwoFactorService, GoogleAuthService
+from apps.users.permissions import IsPlatformStaff
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -438,4 +439,118 @@ class PasswordResetConfirmView(APIView):
                 'message': _('Password has been reset successfully. You can now login with your new password.')
             },
             'message': _('Password reset successful'),
+        })
+
+class AdminUserManagementView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
+
+    @extend_schema(tags=['Admin'], summary='[Admin] List all users')
+    def get(self, request):
+        from apps.core.pagination import SmallPagination
+        users = User.objects.filter(is_active=True).order_by('-date_joined')
+        paginator = SmallPagination()
+        page = paginator.paginate_queryset(users, request)
+
+        data = []
+        for user in page:
+            data.append({
+                'id': str(user.id),
+                'email': user.email,
+                'phone_number': user.phone_number,
+                'full_name': user.get_full_name(),
+                'email_verified': user.email_verified,
+                'phone_verified': user.phone_verified,
+                'id_verification_status': user.id_verification_status,
+                'trust_score': str(user.trust_score),
+                'is_active': user.is_active,
+                'roles': list(user.user_roles.filter(is_active=True).values_list('role', flat=True)),
+                'date_joined': user.date_joined.isoformat(),
+                'last_login': user.last_login.isoformat() if user.last_login else None,
+            })
+
+        return paginator.get_paginated_response(data)
+
+    @extend_schema(tags=['Admin'], summary='[Admin] Verify user identity')
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        action = request.data.get('action')
+
+        if not user_id or not action:
+            return Response({
+                'success': False,
+                'error': {'code': 'validation_error', 'message': _('user_id and action are required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('User not found.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if action == 'verify_identity':
+            user.id_verification_status = 'VERIFIED'
+            user.save(update_fields=['id_verification_status'])
+            message = _('User identity verified.')
+
+        elif action == 'reject_identity':
+            user.id_verification_status = 'REJECTED'
+            user.save(update_fields=['id_verification_status'])
+            message = _('User identity rejected.')
+
+        elif action == 'suspend':
+            user.is_active = False
+            user.save(update_fields=['is_active'])
+            message = _('User suspended.')
+
+        elif action == 'activate':
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+            message = _('User activated.')
+
+        elif action == 'add_role':
+            role = request.data.get('role')
+            if role:
+                from apps.users.models import Role
+                if role in dict(Role.choices):
+                    user.add_role(role, assigned_by=request.user)
+                    message = _(f'Role {role} added.')
+                else:
+                    return Response({
+                        'success': False,
+                        'error': {'code': 'invalid_role', 'message': _('Invalid role.')}
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({
+                    'success': False,
+                    'error': {'code': 'missing_role', 'message': _('Role is required.')}
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        elif action == 'remove_role':
+            role = request.data.get('role')
+            if role:
+                user.remove_role(role)
+                message = _(f'Role {role} removed.')
+            else:
+                return Response({
+                    'success': False,
+                    'error': {'code': 'missing_role', 'message': _('Role is required.')}
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_action', 'message': _('Invalid action.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(f"Admin action '{action}' performed on user {user.email} by {request.user.email}")
+
+        return Response({
+            'success': True,
+            'data': {
+                'user_id': str(user.id),
+                'action': action,
+                'message': message,
+            },
+            'message': message,
         })

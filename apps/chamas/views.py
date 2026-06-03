@@ -26,7 +26,7 @@ from apps.chamas.serializers import (
     MeetingSerializer, MeetingAttendanceSerializer,
     PayoutSerializer, PayoutRecipientSerializer,
 )
-from apps.users.permissions import IsChamaAdmin
+from apps.users.permissions import IsChamaAdmin, IsPlatformStaff
 
 logger = logging.getLogger(__name__)
 
@@ -600,3 +600,80 @@ class BulkContributionView(APIView):
                 'Bulk contribution recorded: %(success)d succeeded, %(failed)d failed.'
             ) % {'success': success_count, 'failed': failure_count},
         }, status=status.HTTP_200_OK if failure_count == 0 else status.HTTP_207_MULTI_STATUS)
+    
+class AdminChamaManagementView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
+
+    @extend_schema(tags=['Admin'], summary='[Admin] List all chamas')
+    def get(self, request):
+        from apps.core.pagination import SmallPagination
+        chamas = Chama.objects.filter(is_deleted=False).order_by('-created_at')
+        paginator = SmallPagination()
+        page = paginator.paginate_queryset(chamas, request)
+
+        data = []
+        for chama in page:
+            data.append({
+                'id': str(chama.id),
+                'name': chama.name,
+                'chama_type': chama.get_chama_type_display(),
+                'status': chama.status,
+                'total_savings': str(chama.total_savings),
+                'member_count': chama.memberships.filter(is_active=True).count(),
+                'created_by': chama.created_by.get_full_name() if chama.created_by else 'N/A',
+                'created_at': chama.created_at.isoformat(),
+            })
+
+        return paginator.get_paginated_response(data)
+
+    @extend_schema(tags=['Admin'], summary='[Admin] Moderate chama')
+    def post(self, request):
+        chama_id = request.data.get('chama_id')
+        action = request.data.get('action')
+
+        if not chama_id or not action:
+            return Response({
+                'success': False,
+                'error': {'code': 'validation_error', 'message': _('chama_id and action are required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            chama = Chama.objects.get(id=chama_id)
+        except Chama.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('Chama not found.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if action == 'suspend':
+            chama.status = 'SUSPENDED'
+            chama.save(update_fields=['status'])
+            message = _('Chama suspended.')
+
+        elif action == 'reactivate':
+            chama.status = 'ACTIVE'
+            chama.save(update_fields=['status'])
+            message = _('Chama reactivated.')
+
+        elif action == 'archive':
+            chama.status = 'ARCHIVED'
+            chama.save(update_fields=['status'])
+            message = _('Chama archived.')
+        else:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_action', 'message': _('Invalid action.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(f"Admin action '{action}' performed on chama {chama.name} by {request.user.email}")
+
+        return Response({
+            'success': True,
+            'data': {
+                'chama_id': str(chama.id),
+                'action': action,
+                'message': message,
+            },
+            'message': message,
+        })

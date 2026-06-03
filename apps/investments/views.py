@@ -54,6 +54,61 @@ class SACCOViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = SACCOShareClassSerializer(classes, many=True)
         return Response({'success': True, 'data': serializer.data})
 
+@extend_schema_view(
+    list=extend_schema(tags=['Admin'], summary='[Admin] List all SACCOs'),
+    create=extend_schema(tags=['Admin'], summary='[Admin] Create SACCO'),
+    retrieve=extend_schema(tags=['Admin'], summary='[Admin] Get SACCO details'),
+    update=extend_schema(tags=['Admin'], summary='[Admin] Update SACCO'),
+    partial_update=extend_schema(tags=['Admin'], summary='[Admin] Partial update SACCO'),
+    destroy=extend_schema(tags=['Admin'], summary='[Admin] Delete SACCO'),
+)
+class AdminSACCOViewSet(viewsets.ModelViewSet):
+
+    serializer_class = SACCOSerializer
+    permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
+    pagination_class = SmallPagination
+
+    def get_queryset(self):
+        return SACCO.objects.filter(is_deleted=False)
+
+    @action(detail=True, methods=['post'])
+    def verify(self, request, pk=None):
+        sacco = self.get_object()
+        sacco.status = 'ACTIVE'
+        sacco.verified_by = request.user
+        sacco.verified_at = timezone.now()
+        sacco.save(update_fields=['status', 'verified_by', 'verified_at'])
+        return Response({
+            'success': True,
+            'data': SACCOSerializer(sacco).data,
+            'message': _('SACCO verified successfully.')
+        })
+
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        sacco = self.get_object()
+        sacco.status = 'SUSPENDED'
+        sacco.trading_halted = True
+        sacco.halt_reason = request.data.get('reason', 'Suspended by administrator')
+        sacco.save(update_fields=['status', 'trading_halted', 'halt_reason'])
+        return Response({
+            'success': True,
+            'data': SACCOSerializer(sacco).data,
+            'message': _('SACCO suspended.')
+        })
+
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        sacco = self.get_object()
+        sacco.status = 'ACTIVE'
+        sacco.trading_halted = False
+        sacco.halt_reason = ''
+        sacco.save(update_fields=['status', 'trading_halted', 'halt_reason'])
+        return Response({
+            'success': True,
+            'data': SACCOSerializer(sacco).data,
+            'message': _('SACCO reactivated.')
+        })
 
 @extend_schema_view(
     list=extend_schema(tags=['Investments'], summary='List my SACCO holdings'),

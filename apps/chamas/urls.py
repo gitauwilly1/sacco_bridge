@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 from apps.chamas.views import (
-    ChamaViewSet, ChamaMemberViewSet, ContributionViewSet,
+    AdminChamaManagementView, ChamaViewSet, ChamaMemberViewSet, ContributionViewSet,
     LoanViewSet, MeetingViewSet,BulkContributionView,
 )
 
@@ -88,4 +88,5 @@ urlpatterns = [
     BulkContributionView.as_view(),
     name='chama-contributions-bulk'
     ),
+    path('admin/manage/', AdminChamaManagementView.as_view(), name='admin-chama-manage'),
 ]
