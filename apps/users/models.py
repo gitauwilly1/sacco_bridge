@@ -63,7 +63,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(max_length=255, unique=True, db_index=True)
     phone_number = models.CharField(
-        max_length=20, unique=True, db_index=True,
+        max_length=20, null=True, blank=True, unique=True, db_index=True,
         validators=[RegexValidator(regex=r'^(?:\+?254|0)?[17]\d{8}$', message=_('Enter a valid Kenyan phone number.'))]
     )
     first_name = models.CharField(max_length=150)

@@ -197,27 +197,28 @@ class GoogleAuthService:
         if not email:
             raise ValueError(_('Email not provided by Google.'))
 
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                'first_name': google_data.get('given_name', ''),
-                'last_name': google_data.get('family_name', ''),
-                'email_verified': google_data.get('email_verified', False),
-                'phone_number': '',
-            }
-        )
-
-        if created:
-            # If phone_number is empty and conflicts, generate a placeholder
-            if not user.phone_number or User.objects.filter(phone_number='').exclude(id=user.id).exists():
-                import uuid
-                user.phone_number = f'google-{uuid.uuid4().hex[:12]}'
-                user.save(update_fields=['phone_number'])
-            logger.info(f"New user created via Google Auth: {email}")
-        else:
+        # Try to find existing user by email first
+        try:
+            user = User.objects.get(email=email)
+            created = False
+            
+            # Update email verified status if needed
             if not user.email_verified and google_data.get('email_verified'):
                 user.email_verified = True
                 user.save(update_fields=['email_verified'])
+            
             logger.info(f"Existing user logged in via Google Auth: {email}")
+            
+        except User.DoesNotExist:
+            # Create new user with NULL phone number
+            user = User.objects.create_user(
+                email=email,
+                first_name=google_data.get('given_name', ''),
+                last_name=google_data.get('family_name', ''),
+                email_verified=google_data.get('email_verified', False),
+                phone_number=None,
+            )
+            created = True
+            logger.info(f"New user created via Google Auth: {email}")
 
         return user, created
