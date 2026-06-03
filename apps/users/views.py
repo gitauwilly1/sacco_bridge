@@ -251,9 +251,10 @@ class GoogleAuthView(APIView):
         except Exception as e:
             logger.error(f"Google auth error: {str(e)}")
             raise AuthenticationFailedError(
-                _('Google authentication failed. Please try again.')
+                _(f'Google authentication failed: {str(e)}')
             )
-
+        
+        
         token_data = AuthenticationService.get_token_response(user)
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
