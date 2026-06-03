@@ -39,8 +39,12 @@ class IsVerifiedUser(permissions.BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
+        
+        # Platform staff are exempt from verification requirement
+        if request.user.has_role(Role.PLATFORM_ADMIN) or request.user.has_role(Role.SUPPORT_AGENT) or request.user.is_staff:
+            return True
+        
         return request.user.email_verified and request.user.phone_verified
-
 
 class IsChamaAdmin(permissions.BasePermission):
     message = "Only chama officials (chairperson, treasurer, or secretary) of this chama can perform this action."

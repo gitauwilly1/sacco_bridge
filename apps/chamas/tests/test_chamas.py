@@ -229,3 +229,14 @@ class TestPermissions:
         }
         response = self.client.post(url, data, format='json')
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_platform_staff_bypass_verification(self):
+        from apps.users.models import UserRole, Role as GlobalRole
+        
+        user = UserFactory(email_verified=False, phone_verified=False)
+        UserRole.objects.create(user=user, role=GlobalRole.PLATFORM_ADMIN)
+        self.client.force_authenticate(user=user)
+
+        url = reverse('sacco-list')
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
