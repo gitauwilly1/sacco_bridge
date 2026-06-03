@@ -64,7 +64,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(max_length=255, unique=True, db_index=True)
     phone_number = models.CharField(
         max_length=20, unique=True, db_index=True,
-        validators=[RegexValidator(regex=r'^(?:\+?254|0)?7\d{8}$', message=_('Enter a valid Kenyan phone number.'))]
+        validators=[RegexValidator(regex=r'^(?:\+?254|0)?[17]\d{8}$', message=_('Enter a valid Kenyan phone number.'))]
     )
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)

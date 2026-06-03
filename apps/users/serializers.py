@@ -40,7 +40,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def validate_phone_number(self, value):
         import re
         cleaned = re.sub(r'\s+', '', value)
-        if not re.match(r'^(?:\+?254|0)?7\d{8}$', cleaned):
+        if not re.match(r'^(?:\+?254|0)[17]\d{8}$', cleaned):
             raise serializers.ValidationError(_('Enter a valid Kenyan phone number.'))
         if User.objects.filter(phone_number=cleaned).exists():
             raise serializers.ValidationError(_('A user with this phone number already exists.'))
