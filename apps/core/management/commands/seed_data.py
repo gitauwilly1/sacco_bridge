@@ -30,12 +30,9 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS('Database seeded successfully!'))
 
-    # ============================================================
     # 1. PLATFORM ADMIN
-    # ============================================================
 
     def create_platform_admin(self):
-        """Create platform admin user with all permissions."""
         from apps.users.models import Role
 
         admin, created = User.objects.get_or_create(
@@ -59,9 +56,7 @@ class Command(BaseCommand):
             admin.add_role(Role.SUPPORT_AGENT)
             self.stdout.write(f'  Created platform admin: {admin.email}')
 
-    # ============================================================
     # 2. SACCOS AND SHARE CLASSES
-    # ============================================================
 
     def create_saccos_and_share_classes(self):
         """Create verified SACCOs with share classes and market data."""
@@ -219,12 +214,9 @@ class Command(BaseCommand):
 
             self.stdout.write(f'  Created SACCO: {sacco.name}')
 
-    # ============================================================
     # 3. USERS WITH PROFILES
-    # ============================================================
 
     def create_users_with_profiles(self):
-        """Create diverse user personas with profiles and roles."""
         from apps.users.models import Role, UserProfile
 
         users_data = [
@@ -233,7 +225,7 @@ class Command(BaseCommand):
                 'email': 'mary.akinyi@example.com',
                 'phone': '0711000001',
                 'first': 'Mary', 'last': 'Akinyi',
-                'roles': [Role.SELLER, Role.CHAMA_MEMBER],
+                'roles': [Role.SELLER],
                 'occupation': 'Primary School Teacher',
                 'employer': 'TSC',
                 'county': 'Kisumu',
@@ -259,7 +251,7 @@ class Command(BaseCommand):
                 'email': 'grace.wanjala@example.com',
                 'phone': '0711000003',
                 'first': 'Grace', 'last': 'Wanjala',
-                'roles': [Role.SELLER, Role.CHAMA_TREASURER],
+                'roles': [Role.SELLER],
                 'occupation': 'Nurse',
                 'employer': 'Kenyatta National Hospital',
                 'county': 'Nairobi',
@@ -273,7 +265,7 @@ class Command(BaseCommand):
                 'email': 'james.omo@example.com',
                 'phone': '0711000004',
                 'first': 'James', 'last': 'Omondi',
-                'roles': [Role.INVESTOR, Role.CHAMA_CHAIRPERSON],
+                'roles': [Role.INVESTOR],
                 'occupation': 'Bank Manager',
                 'employer': 'Equity Bank',
                 'county': 'Kisumu',
@@ -286,7 +278,7 @@ class Command(BaseCommand):
                 'email': 'faith.wambui@example.com',
                 'phone': '0711000005',
                 'first': 'Faith', 'last': 'Wambui',
-                'roles': [Role.INVESTOR, Role.CHAMA_MEMBER],
+                'roles': [Role.INVESTOR],
                 'occupation': 'Software Developer',
                 'employer': 'Safaricom',
                 'county': 'Nairobi',
@@ -327,7 +319,7 @@ class Command(BaseCommand):
                 'email': 'agnes.muthoni@example.com',
                 'phone': '0711000008',
                 'first': 'Agnes', 'last': 'Muthoni',
-                'roles': [Role.CHAMA_TREASURER, Role.CHAMA_MEMBER],
+                'roles': [],
                 'occupation': 'Small Business Owner',
                 'employer': 'Self-Employed',
                 'county': 'Machakos',
@@ -340,7 +332,7 @@ class Command(BaseCommand):
                 'email': 'john.kibet@example.com',
                 'phone': '0711000009',
                 'first': 'John', 'last': 'Kibet',
-                'roles': [Role.CHAMA_SECRETARY],
+                'roles': [],
                 'occupation': 'High School Teacher',
                 'employer': 'TSC',
                 'county': 'Eldoret',
@@ -353,7 +345,7 @@ class Command(BaseCommand):
                 'email': 'sarah.chebet@example.com',
                 'phone': '0711000010',
                 'first': 'Sarah', 'last': 'Chebet',
-                'roles': [Role.CHAMA_MEMBER, Role.SELLER],
+                'roles': [Role.SELLER],
                 'occupation': 'Farmer',
                 'employer': 'Self-Employed',
                 'county': 'Kericho',
@@ -389,8 +381,9 @@ class Command(BaseCommand):
             if created:
                 user.set_password('UserPass@2026')
                 user.save()
-                for role in roles:
-                    user.add_role(role)
+                if roles:
+                    for role in roles:
+                        user.add_role(role)
 
                 profile = user.profile
                 profile.occupation = occupation
@@ -404,12 +397,9 @@ class Command(BaseCommand):
 
             self.stdout.write(f'  Created user: {user.email}')
 
-    # ============================================================
     # 4. CHAMAS WITH FULL DATA
-    # ============================================================
 
     def create_chamas_with_full_data(self):
-        """Create chamas with members, contributions, loans, and meetings."""
         from apps.chamas.models import (
             Chama, ChamaMember, Contribution, Loan, LoanRepayment,
             Meeting, MeetingAttendance, MemberRole as ChamaMemberRole,
@@ -684,12 +674,9 @@ class Command(BaseCommand):
 
             self.stdout.write(f'  Created chama: {chama.name}')
 
-    # ============================================================
     # 5. SACCO HOLDINGS
-    # ============================================================
 
     def create_sacco_holdings(self):
-        """Create SACCO share holdings for users."""
         from apps.investments.models import SACCO, SACCOShareClass, SACCOMemberHolding
 
         sacco = SACCO.objects.first()
@@ -750,12 +737,9 @@ class Command(BaseCommand):
 
         self.stdout.write('  Created SACCO holdings')
 
-    # ============================================================
     # 6. LIQUIDITY REQUESTS AND CONNECTIONS
-    # ============================================================
 
     def create_liquidity_requests_and_connections(self):
-        """Create liquidity requests with buyer interests and connections."""
         from apps.investments.models import (
             SACCO, SACCOShareClass, SACCOMemberHolding,
             LiquidityRequest, BuyerInterest, Connection, Offer,
@@ -874,12 +858,9 @@ class Command(BaseCommand):
 
         self.stdout.write('  Created liquidity requests, interests, connections, and offers')
 
-    # ============================================================
     # 7. SETTLEMENTS
-    # ============================================================
 
     def create_settlements(self):
-        """Create settlement intents with events and ledger entries."""
         from apps.transactions.models import (
             SettlementIntent, SettlementEvent, LedgerEntry,
             SettlementState, SettlementEventTrigger
@@ -1009,12 +990,9 @@ class Command(BaseCommand):
 
         self.stdout.write('  Created settlements with events and ledger entries')
 
-    # ============================================================
     # 8. NOTIFICATIONS
-    # ============================================================
 
     def create_notifications(self):
-        """Create sample notifications for users."""
         from apps.notifications.models import (
             Notification, NotificationCategory, NotificationPriority,
             NotificationChannel
@@ -1106,12 +1084,9 @@ class Command(BaseCommand):
 
         self.stdout.write('  Created sample notifications')
 
-    # ============================================================
     # 9. ANALYTICS DATA
-    # ============================================================
 
     def create_analytics_data(self):
-        """Create platform metrics and chama analytics."""
         from apps.analytics.models import PlatformMetric, ChamaAnalytics
         from apps.chamas.models import Chama
 
@@ -1177,12 +1152,9 @@ class Command(BaseCommand):
 
         self.stdout.write('  Created analytics data')
 
-    # ============================================================
     # 10. KNOWLEDGE ARTICLES
-    # ============================================================
 
     def create_knowledge_articles(self):
-        """Create knowledge base articles for the AI chatbot."""
         from apps.chatbot.models import KnowledgeArticle, KnowledgeCategory
 
         articles = [
@@ -1274,12 +1246,9 @@ class Command(BaseCommand):
 
         self.stdout.write('  Created knowledge base articles')
 
-    # ============================================================
     # 11. CHAT SESSIONS
-    # ============================================================
 
     def create_chat_sessions(self):
-        """Create sample chat sessions with messages."""
         from apps.chatbot.models import ChatSession, ChatMessage, SessionType, MessageRole
 
         users = User.objects.filter(is_active=True)[:5]

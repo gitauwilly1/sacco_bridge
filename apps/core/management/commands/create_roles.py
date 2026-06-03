@@ -22,32 +22,10 @@ class Command(BaseCommand):
                     'view_analytics', 'export_data',
                 ]
             },
-            Role.CHAMA_TREASURER: {
+            Role.SACCO_ADMIN: {
                 'permissions': [
-                    'view_chama', 'manage_chama_finances',
-                    'create_contribution', 'view_contribution',
-                    'approve_loan', 'view_loan',
-                    'manage_members', 'view_chama_reports',
-                ]
-            },
-            Role.CHAMA_CHAIRPERSON: {
-                'permissions': [
-                    'view_chama', 'manage_members',
-                    'approve_loan', 'view_chama_reports',
-                    'manage_chama_settings',
-                ]
-            },
-            Role.CHAMA_SECRETARY: {
-                'permissions': [
-                    'view_chama', 'manage_meetings',
-                    'view_contribution', 'view_loan',
-                    'send_announcements', 'manage_chama_records',
-                ]
-            },
-            Role.CHAMA_MEMBER: {
-                'permissions': [
-                    'view_chama', 'make_contribution',
-                    'request_loan', 'view_own_records',
+                    'view_sacco', 'change_sacco',
+                    'view_sacco_listings', 'manage_sacco_members',
                 ]
             },
             Role.INVESTOR: {
