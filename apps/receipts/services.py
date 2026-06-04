@@ -92,8 +92,11 @@ class ReceiptPDFGenerator:
 
         # Save PDF file
         filename = f"receipt_{receipt_number}.pdf"
-        receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
-
+        try:
+            receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
+            logger.info(f"Settlement receipt PDF saved: {filename}")
+        except Exception as e:
+            logger.error(f"Failed to save settlement receipt PDF {filename}: {str(e)}", exc_info=True)
         logger.info(f"Receipt generated: {receipt_number} for user {user.email}")
 
         return receipt
@@ -139,8 +142,11 @@ class ReceiptPDFGenerator:
         )
 
         filename = f"receipt_{receipt_number}.pdf"
-        receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
-
+        try:
+            receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
+            logger.info(f"Contribution receipt PDF saved: {filename}")
+        except Exception as e:
+            logger.error(f"Failed to save contribution receipt PDF {filename}: {str(e)}", exc_info=True)
         logger.info(f"Contribution receipt generated: {receipt_number}")
 
         return receipt
@@ -186,7 +192,11 @@ class ReceiptPDFGenerator:
         )
 
         filename = f"receipt_{receipt_number}.pdf"
-        receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
+        try:
+            receipt.pdf_file.save(filename, ContentFile(pdf_content), save=True)
+            logger.info(f"Loan repayment receipt PDF saved: {filename}")
+        except Exception as e:
+            logger.error(f"Failed to save loan repayment receipt PDF {filename}: {str(e)}", exc_info=True)
 
         logger.info(f"Loan repayment receipt generated: {receipt_number}")
 

@@ -568,7 +568,7 @@ class BulkContributionView(APIView):
                             chama_name=chama.name,
                         )
                     except Exception as e:
-                        logger.warning(f"Failed to generate receipt: {e}")
+                        logger.error(f"Failed to generate receipt: {e}", exc_info=True)
 
                     result['status'] = 'success'
                     result['contribution_id'] = str(contribution.id)
