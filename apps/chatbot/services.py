@@ -57,7 +57,7 @@ If you don't know something, say so honestly and suggest contacting human suppor
                 return
 
             cls._client = genai.Client(api_key=api_key)
-            cls._model_name = getattr(settings, 'GEMINI_MODEL', 'gemini-1.5-flash')
+            cls._model_name = getattr(settings, 'GEMINI_MODEL', 'gemini-2.5-flash')
 
             cls._initialized = True
             logger.info(f"Gemini AI initialized with model: {cls._model_name}")
