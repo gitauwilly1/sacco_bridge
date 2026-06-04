@@ -28,22 +28,17 @@ class MpesaService:
 
     @classmethod
     def _get_auth_url(cls):
-        if settings.DEBUG:
-            return cls.SANDBOX_AUTH_URL
-        return cls.PRODUCTION_AUTH_URL
+        # Always use sandbox for now. Switch to production when you have live credentials.
+        return cls.SANDBOX_AUTH_URL
 
     @classmethod
     def _get_stk_url(cls):
-        if settings.DEBUG:
-            return cls.SANDBOX_STK_URL
-        return cls.PRODUCTION_STK_URL
+        return cls.SANDBOX_STK_URL
 
     @classmethod
     def _get_query_url(cls):
-        if settings.DEBUG:
-            return cls.SANDBOX_QUERY_URL
-        return cls.PRODUCTION_QUERY_URL
-
+        return cls.SANDBOX_QUERY_URL
+    
     @classmethod
     def get_access_token(cls):
         cached_token = cache.get(cls.ACCESS_TOKEN_CACHE_KEY)
