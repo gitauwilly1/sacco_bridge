@@ -437,6 +437,10 @@ MPESA_PASSKEY = env('MPESA_PASSKEY')
 MPESA_SHORTCODE = env('MPESA_SHORTCODE')
 MPESA_CALLBACK_URL = env('MPESA_CALLBACK_URL')
 
+# Gemini AI Configuration
+GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
+GEMINI_MODEL = env('GEMINI_MODEL', default='gemini-2.5-flash')
+
 # CELERY BEAT SCHEDULE
 
 from celery.schedules import crontab
