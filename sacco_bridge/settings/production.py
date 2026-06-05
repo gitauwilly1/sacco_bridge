@@ -38,7 +38,10 @@ if os.environ.get('SENTRY_DSN'):
         traces_sample_rate=0.1,
     )
 
-# Cloudinary - only use if configured
+# Cloudinary - only use if fully configured
 CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
-if CLOUDINARY_CLOUD_NAME:
+CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '')
+CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')
+
+if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
