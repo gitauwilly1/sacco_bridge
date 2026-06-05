@@ -164,8 +164,21 @@ class ContributionViewSet(viewsets.ModelViewSet):
 
             if not contribution.chama.require_contribution_verification:
                 contribution.mark_as_paid(payment_ref)
+            
+            # Generate receipt
+            try:
+                from apps.receipts.services import ReceiptPDFGenerator
+                ReceiptPDFGenerator.generate_contribution_receipt(
+                    contribution=contribution,
+                    user=contribution.member.user,
+                    chama_name=contribution.chama.name,
+                )
+            except Exception as e:
+                logger.error(f"Failed to generate contribution receipt: {e}", exc_info=True)
+            
             logger.info(f"Contribution recorded: {contribution.id}")
 
+            
     @action(detail=True, methods=['post'])
     def verify(self, request, chama_pk=None, pk=None):
         contribution = self.get_object()
@@ -300,13 +313,25 @@ class LoanViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             loan.record_repayment(amount)
-            LoanRepayment.objects.create(
+            repayment = LoanRepayment.objects.create(
                 loan=loan,
                 amount=amount,
                 payment_method=request.data.get('payment_method', PaymentMethod.MPESA),
                 payment_reference=request.data.get('payment_reference', ''),
             )
 
+            # Generate receipt
+            try:
+                from apps.receipts.services import ReceiptPDFGenerator
+                ReceiptPDFGenerator.generate_loan_repayment_receipt(
+                    repayment=repayment,
+                    user=request.user,
+                    chama_name=loan.chama.name,
+                )
+            except Exception as e:
+                logger.error(f"Failed to generate loan repayment receipt: {e}", exc_info=True)
+
+                
         return Response({
             'success': True,
             'data': LoanSerializer(loan).data,
