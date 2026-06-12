@@ -84,9 +84,55 @@ urlpatterns = [
         name='chama-meeting-attendance'
     ),
     path(
-    '<uuid:chama_pk>/contributions/bulk/',
-    BulkContributionView.as_view(),
-    name='chama-contributions-bulk'
+        '<uuid:chama_pk>/contributions/bulk/',
+        BulkContributionView.as_view(),
+        name='chama-contributions-bulk'
+    ),
+
+    # Contributions - add update and delete
+    path(
+        '<uuid:chama_pk>/contributions/<uuid:pk>/',
+        ContributionViewSet.as_view({
+            'get': 'retrieve',
+            'patch': 'partial_update',
+            'put': 'update',
+            'delete': 'destroy',
+        }),
+        name='chama-contribution-detail'
+    ),
+
+    # Loans - add update and delete
+    path(
+        '<uuid:chama_pk>/loans/<uuid:pk>/',
+        LoanViewSet.as_view({
+            'get': 'retrieve',
+            'patch': 'partial_update',
+            'put': 'update',
+            'delete': 'destroy',
+        }),
+        name='chama-loan-detail'
+    ),
+
+    # Meetings - add delete
+    path(
+        '<uuid:chama_pk>/meetings/<uuid:pk>/',
+        MeetingViewSet.as_view({
+            'get': 'retrieve',
+            'patch': 'partial_update',
+            'put': 'update',
+            'delete': 'destroy',
+        }),
+        name='chama-meeting-detail'
+    ),
+
+    # Meeting attendance - add update and delete
+    path(
+        '<uuid:chama_pk>/meetings/<uuid:pk>/attendance/<uuid:attendance_pk>/',
+        MeetingViewSet.as_view({
+            'patch': 'partial_update',
+            'delete': 'destroy',
+        }),
+        name='chama-meeting-attendance-detail'
     ),
     path('admin/manage/', AdminChamaManagementView.as_view(), name='admin-chama-manage'),
 ]
