@@ -5,7 +5,9 @@ from apps.users.views import (
     ResendVerificationView, GoogleAuthView,
     TokenRefreshViewCustom, LogoutView,
     PasswordChangeView, PasswordResetRequestView,
-    PasswordResetConfirmView
+    PasswordResetConfirmView,TwoFactorRecoveryRequestView,
+    TwoFactorRecoveryConfirmView,
+    TwoFactorDisableWithBackupView,
 )
 
 urlpatterns = [
@@ -21,4 +23,7 @@ urlpatterns = [
     path('password/change/', PasswordChangeView.as_view(), name='auth-password-change'),
     path('password/reset/', PasswordResetRequestView.as_view(), name='auth-password-reset'),
     path('password/reset/confirm/', PasswordResetConfirmView.as_view(), name='auth-password-reset-confirm'),
+    path('2fa/recovery/', TwoFactorRecoveryRequestView.as_view(), name='auth-2fa-recovery-request'),
+    path('2fa/recovery/confirm/', TwoFactorRecoveryConfirmView.as_view(), name='auth-2fa-recovery-confirm'),
+    path('2fa/disable-backup/', TwoFactorDisableWithBackupView.as_view(), name='auth-2fa-disable-backup'),
 ]
