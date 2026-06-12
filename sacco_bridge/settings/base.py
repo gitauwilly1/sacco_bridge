@@ -331,42 +331,68 @@ AXES_LOCKOUT_URL = '/api/v1/auth/locked-out/'
 # Spectacular settings for OpenAPI/Swagger
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Sacco Bridge API',
-    'DESCRIPTION': 'Sacco Bridge is a dual-mode platform that digitizes chama (informal savings group) '
-                   'management and facilitates secondary market liquidity for SACCO shares. '
-                   'Key features include chama digitization with automated M-Pesa contribution tracking, '
-                   'digital loan management within chamas, SACCO share liquidity connections between '
-                   'verified buyers and sellers, atomic settlement coordination with trustee-backed '
-                   'guarantees, and structured dispute resolution with immutable audit trails. '
-                   'All API endpoints (except registration and login) require JWT authentication. '
-                   'Include the token in the Authorization header as: Bearer <your-token>. '
-                   'Rate limiting: Anonymous users 100 requests per hour, Authenticated users 1000 requests per hour.',
+    'DESCRIPTION': """
+    API for Sacco Bridge - a dual-mode platform digitizing chama management 
+    and facilitating secondary market liquidity for SACCO shares.
+    
+    Features include:
+    - User registration and authentication (JWT, Google OAuth, 2FA TOTP)
+    - Role-based access control (10 distinct roles)
+    - Chama digitization with automated M-Pesa contribution tracking
+    - Digital loan management (apply, approve, disburse, repay)
+    - Meeting scheduling with attendance tracking
+    - Bulk contribution recording for treasurers
+    - SACCO share liquidity connections between verified buyers and sellers
+    - Structured offer negotiation (make, accept, decline, counter)
+    - Atomic settlement coordination with 11-state machine
+    - Trustee-backed settlement guarantees
+    - Structured dispute resolution with immutable audit trails
+    - Real-time WebSocket notifications and AI chatbot
+    - Firebase push notifications, Africa's Talking SMS, and email delivery
+    - PDF receipt generation with QR verification codes
+    - M-Pesa STK push integration for mobile payments
+    - Analytics dashboards with precomputed metrics
+    - Comprehensive API documentation with drf-spectacular
+    """,
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': False,
+        'filter': True,
+    },
+
     'SECURITY': [
         {
             'Bearer': {
                 'type': 'http',
                 'scheme': 'bearer',
                 'bearerFormat': 'JWT',
+                'description': 'Enter your JWT access token'
             }
         }
     ],
+
     'TAGS': [
-        {'name': 'Authentication', 'description': 'User registration, login, and token management'},
-        {'name': 'Users', 'description': 'User profile management and settings'},
-        {'name': 'Chamas', 'description': 'Chama creation, management, and member operations'},
-        {'name': 'Contributions', 'description': 'Chama contribution tracking and M-Pesa integration'},
-        {'name': 'Loans', 'description': 'Chama loan requests, approvals, and repayments'},
-        {'name': 'Investments', 'description': 'SACCO share liquidity requests and connections'},
-        {'name': 'Settlements', 'description': 'Transaction settlement tracking and dispute resolution'},
-        {'name': 'Notifications', 'description': 'Push notifications, SMS, and email alerts'},
-        {'name': 'Analytics', 'description': 'Platform analytics and reporting'},
-        {'name': 'Chatbot', 'description': 'AI-powered assistant for platform guidance'},
-        {'name': 'M-Pesa', 'description': 'Mobile money payments and STK push integration'},
-        {'name': 'Receipts', 'description': 'PDF receipt generation and download'},
+        {'name': 'Authentication', 'description': 'User registration, login, token refresh, 2FA setup, password management, and Google OAuth.'},
+        {'name': 'Users', 'description': 'User profile management, detailed profiles with KYC, and login history.'},
+        {'name': 'Chamas', 'description': 'Chama creation, retrieval, updates, join/leave, and member management.'},
+        {'name': 'Contributions', 'description': 'Single and bulk contribution recording, listing, and verification for chama groups.'},
+        {'name': 'Loans', 'description': 'Loan application, approval, disbursement, repayment tracking within chamas.'},
+        {'name': 'Meetings', 'description': 'Meeting scheduling, listing, and attendance recording for chama groups.'},
+        {'name': 'Investments', 'description': 'SACCO browsing, share holdings, liquidity requests, buyer opportunities, and connections.'},
+        {'name': 'Settlements', 'description': 'Settlement tracking with full audit trail, event timeline, ledger entries, and dispute resolution.'},
+        {'name': 'Notifications', 'description': 'In-app notification list, unread counts, mark read, device registration, and channel preferences.'},
+        {'name': 'Analytics', 'description': 'User and platform dashboards, chama analytics, SACCO market data, and metrics refresh.'},
+        {'name': 'Chatbot', 'description': 'AI-powered chat sessions with Google Gemini, knowledge base articles, and conversation context.'},
+        {'name': 'M-Pesa', 'description': 'STK push initiation, transaction listing, and payment status tracking via Safaricom Daraja API.'},
+        {'name': 'Receipts', 'description': 'PDF receipt listing, detail retrieval, and download for settlements, contributions, and repayments.'},
     ],
 }
+
 # Encryption key for sensitive data
 ENCRYPTION_KEY = env('ENCRYPTION_KEY')
 
