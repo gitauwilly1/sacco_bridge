@@ -170,13 +170,47 @@ class TwoFactorService:
         return totp.verify(code)
 
     @staticmethod
+    def generate_backup_codes():
+        import secrets
+        import hashlib
+        
+        codes = []
+        plain_codes = []
+        
+        for _ in range(8):
+            code = secrets.token_hex(4).upper()[:8]
+            plain_codes.append(code)
+            hashed = hashlib.sha256(code.encode()).hexdigest()
+            codes.append(hashed)
+        
+        return codes, plain_codes
+
+    @staticmethod
+    def verify_backup_code(user, code):
+        import hashlib
+        hashed = hashlib.sha256(code.encode()).hexdigest()
+        
+        if hashed in user.backup_codes:
+            user.backup_codes.remove(hashed)
+            user.save(update_fields=['backup_codes'])
+            return True
+        return False
+
+    @staticmethod
     def enable_two_factor(user, secret, verification_code):
         if not TwoFactorService.verify_totp(secret, verification_code):
             raise ValueError(_('Invalid verification code.'))
+        
         user.totp_secret = encrypt_data(secret)
         user.two_factor_enabled = True
-        user.save(update_fields=['totp_secret', 'two_factor_enabled'])
+        
+        # Generate backup codes
+        hashed_codes, plain_codes = TwoFactorService.generate_backup_codes()
+        user.backup_codes = hashed_codes
+        user.save(update_fields=['totp_secret', 'two_factor_enabled', 'backup_codes'])
+        
         logger.info(f"2FA enabled for user {user.email}")
+        return plain_codes
 
     @staticmethod
     def disable_two_factor(user, verification_code):
@@ -185,9 +219,58 @@ class TwoFactorService:
             raise ValueError(_('Invalid verification code.'))
         user.totp_secret = ''
         user.two_factor_enabled = False
-        user.save(update_fields=['totp_secret', 'two_factor_enabled'])
+        user.backup_codes = []
+        user.save(update_fields=['totp_secret', 'two_factor_enabled', 'backup_codes'])
         logger.info(f"2FA disabled for user {user.email}")
 
+    @staticmethod
+    def disable_with_backup_code(user, backup_code):
+        """Disable 2FA using a backup code."""
+        if not TwoFactorService.verify_backup_code(user, backup_code):
+            raise ValueError(_('Invalid backup code.'))
+        user.totp_secret = ''
+        user.two_factor_enabled = False
+        user.backup_codes = []
+        user.save(update_fields=['totp_secret', 'two_factor_enabled', 'backup_codes'])
+        logger.info(f"2FA disabled via backup code for user {user.email}")
+
+    @staticmethod
+    def admin_reset_2fa(user, admin_user):
+        user.totp_secret = ''
+        user.two_factor_enabled = False
+        user.backup_codes = []
+        user.save(update_fields=['totp_secret', 'two_factor_enabled', 'backup_codes'])
+        logger.info(f"2FA reset by admin {admin_user.email} for user {user.email}")
+
+    @staticmethod
+    def send_2fa_recovery_email(user):
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+
+        try:
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            recovery_url = f"{settings.FRONTEND_URL}/recover-2fa/{uid}/{token}/"
+
+            subject = _('2FA Recovery - Sacco Bridge')
+            html_message = render_to_string('emails/recover_2fa.html', {
+                'user': user,
+                'recovery_url': recovery_url,
+                'expiry_hours': 1,
+            })
+
+            send_mail(
+                subject=subject,
+                message='',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+            logger.info(f"2FA recovery email sent to {user.email}")
+        except Exception as e:
+            logger.error(f"Failed to send 2FA recovery email: {str(e)}")
 
 class GoogleAuthService:
 
