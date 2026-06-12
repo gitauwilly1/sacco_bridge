@@ -1,43 +1,72 @@
-from rest_framework import serializers
+"""
+Google reCAPTCHA v3 verification service.
+"""
+
+import logging
+import requests
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
-from apps.core.recaptcha import ReCaptchaService
+
+logger = logging.getLogger(__name__)
 
 
-class ReCaptchaField(serializers.CharField):
+class ReCaptchaService:
+    """
+    Verifies reCAPTCHA tokens with Google's API.
+    
+    In development (DEBUG=True), verification is optional.
+    In production, invalid tokens are rejected.
+    """
 
-    def __init__(self, action=None, **kwargs):
-        self.recaptcha_action = action
-        
-        # In development, make it optional so Swagger/Postman still work
-        if settings.DEBUG:
-            kwargs.setdefault('required', False)
-            kwargs.setdefault('allow_blank', True)
-            kwargs.setdefault('default', 'dev-bypass')
-        else:
-            kwargs.setdefault('required', True)
-        
-        kwargs.setdefault('write_only', True)
-        kwargs.setdefault(
-            'help_text',
-            _('reCAPTCHA verification token. Not required in development.')
-        )
-        super().__init__(**kwargs)
+    VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
+    SCORE_THRESHOLD = 0.5
 
-    def validate_recaptcha(self, value):
-        # Skip in development
-        if settings.DEBUG:
-            return value
-        
-        # Verify in production
-        if not value:
-            raise serializers.ValidationError(_('reCAPTCHA token is required.'))
-        
-        result = ReCaptchaService.verify(value, action=self.recaptcha_action)
-        if not result['success']:
-            raise serializers.ValidationError(result['error'])
-        return value
+    @classmethod
+    def verify(cls, token, action=None):
+        if settings.DEBUG and not getattr(settings, 'RECAPTCHA_SECRET_KEY', None):
+            logger.debug("reCAPTCHA bypassed in development")
+            return {'success': True, 'error': None, 'score': 1.0}
 
-    def run_validation(self, data):
-        value = super().run_validation(data)
-        return self.validate_recaptcha(value)
+        secret_key = getattr(settings, 'RECAPTCHA_SECRET_KEY', None)
+        if not secret_key:
+            logger.warning("reCAPTCHA secret key not configured")
+            return {'success': True, 'error': None, 'score': 0.0}
+
+        try:
+            response = requests.post(cls.VERIFY_URL, data={
+                'secret': secret_key,
+                'response': token,
+            }, timeout=5)
+
+            result = response.json()
+
+            if result.get('success'):
+                score = result.get('score', 0.0)
+                
+                if action and result.get('action') != action:
+                    logger.warning(
+                        f"reCAPTCHA action mismatch: expected {action}, "
+                        f"got {result.get('action')}"
+                    )
+
+                if score < cls.SCORE_THRESHOLD:
+                    logger.warning(f"reCAPTCHA low score: {score}")
+                    return {
+                        'success': False,
+                        'error': _('Suspicious activity detected. Please try again.'),
+                        'score': score,
+                    }
+
+                return {'success': True, 'error': None, 'score': score}
+            else:
+                error_codes = result.get('error-codes', [])
+                logger.error(f"reCAPTCHA verification failed: {error_codes}")
+                return {
+                    'success': False,
+                    'error': _('reCAPTCHA verification failed. Please try again.'),
+                    'score': 0.0,
+                }
+
+        except requests.RequestException as e:
+            logger.error(f"reCAPTCHA request failed: {str(e)}")
+            return {'success': True, 'error': None, 'score': 0.0}

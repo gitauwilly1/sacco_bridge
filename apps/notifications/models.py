@@ -269,6 +269,15 @@ class NotificationDelivery(models.Model):
         help_text=_("Recipient address (email, phone, or device token).")
     )
 
+    # Idempotency key: prevents duplicate deliveries
+    idempotency_key = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        db_index=True,
+        help_text=_("Unique key to prevent duplicate delivery attempts.")
+    )
+
     provider_message_id = models.CharField(
         max_length=255,
         blank=True,
@@ -308,10 +317,15 @@ class NotificationDelivery(models.Model):
         verbose_name = _('Notification Delivery')
         verbose_name_plural = _('Notification Deliveries')
         ordering = ['-sent_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['notification', 'channel'],
+                name='unique_notification_channel_delivery'
+            )
+        ]
 
     def __str__(self):
         return f"Delivery: {self.notification.id} via {self.get_channel_display()} ({self.status})"
-
 
 class UserDevice(models.Model):
 

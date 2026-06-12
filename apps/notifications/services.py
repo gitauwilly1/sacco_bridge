@@ -329,12 +329,38 @@ class NotificationService:
 
     @classmethod
     def _deliver_channel(cls, notification, channel, user):
-        delivery = NotificationDelivery.objects.create(
+        existing = NotificationDelivery.objects.filter(
             notification=notification,
             channel=channel,
-            recipient=cls._get_recipient(user, channel),
-            status=DeliveryStatus.PENDING,
+        ).first()
+
+        if existing and existing.status == DeliveryStatus.DELIVERED:
+            logger.info(
+                f"Notification {notification.id} already delivered via {channel}. Skipping."
+            )
+            return True
+
+        if existing and existing.status == DeliveryStatus.SENT:
+            logger.info(
+                f"Notification {notification.id} already sent via {channel}. Awaiting confirmation."
+            )
+            return True
+
+        delivery, created = NotificationDelivery.objects.get_or_create(
+            notification=notification,
+            channel=channel,
+            defaults={
+                'recipient': cls._get_recipient(user, channel),
+                'status': DeliveryStatus.PENDING,
+                'idempotency_key': f"{notification.id}:{channel}",
+            }
         )
+
+        if not created:
+            logger.warning(
+                f"Duplicate delivery blocked for notification {notification.id} via {channel}"
+            )
+            return False
 
         try:
             if channel == NotificationChannel.IN_APP:
