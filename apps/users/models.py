@@ -86,6 +86,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     account_locked_until = models.DateTimeField(null=True, blank=True)
     totp_secret = models.CharField(max_length=255, blank=True, default='')
     two_factor_enabled = models.BooleanField(default=False)
+    backup_codes = models.JSONField(
+        default=list,
+        help_text=_("Hashed backup codes for 2FA recovery.")
+    )
     preferred_language = models.CharField(max_length=10, default='en', choices=[('en', 'English'), ('sw', 'Kiswahili')])
 
     # Renamed from notification_preferences to notification_settings
