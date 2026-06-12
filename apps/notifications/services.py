@@ -329,6 +329,7 @@ class NotificationService:
 
     @classmethod
     def _deliver_channel(cls, notification, channel, user):
+        # Idempotency check
         existing = NotificationDelivery.objects.filter(
             notification=notification,
             channel=channel,
@@ -342,140 +343,47 @@ class NotificationService:
 
         if existing and existing.status == DeliveryStatus.SENT:
             logger.info(
-                f"Notification {notification.id} already sent via {channel}. Awaiting confirmation."
+                f"Notification {notification.id} already sent via {channel}."
             )
             return True
 
-        delivery, created = NotificationDelivery.objects.get_or_create(
-            notification=notification,
-            channel=channel,
-            defaults={
-                'recipient': cls._get_recipient(user, channel),
-                'status': DeliveryStatus.PENDING,
-                'idempotency_key': f"{notification.id}:{channel}",
-            }
-        )
-
-        if not created:
-            logger.warning(
-                f"Duplicate delivery blocked for notification {notification.id} via {channel}"
+        if existing:
+            logger.info(
+                f"Notification {notification.id} has pending delivery via {channel}."
             )
             return False
 
-        try:
-            if channel == NotificationChannel.IN_APP:
-                delivery.status = DeliveryStatus.DELIVERED
-                delivery.delivered_at = timezone.now()
-                delivery.save()
-                return True
+        delivery = NotificationDelivery.objects.create(
+            notification=notification,
+            channel=channel,
+            recipient=cls._get_recipient(user, channel),
+            status=DeliveryStatus.PENDING,
+            idempotency_key=f"{notification.id}:{channel}",
+        )
 
-            elif channel == NotificationChannel.PUSH:
-                devices = UserDevice.objects.filter(
-                    user=user, is_active=True
-                )
+        # Dispatch to per-channel Celery task
+        from apps.notifications.tasks import (
+            deliver_push, deliver_sms, deliver_email, deliver_in_app
+        )
 
-                if devices.exists():
-                    tokens = list(devices.values_list('firebase_token', flat=True))
+        if channel == NotificationChannel.IN_APP:
+            deliver_in_app.delay(delivery.id)
+            return True
 
-                    if len(tokens) == 1:
-                        result = FirebaseService.send_push_notification(
-                            tokens[0],
-                            notification.title,
-                            notification.body,
-                            data={
-                                'notification_id': str(notification.id),
-                                'category': notification.category,
-                                'action_url': notification.action_url,
-                                **(notification.data or {}),
-                            },
-                        )
-                    else:
-                        result = FirebaseService.send_multicast(
-                            tokens,
-                            notification.title,
-                            notification.body,
-                            data={
-                                'notification_id': str(notification.id),
-                                'category': notification.category,
-                                'action_url': notification.action_url,
-                                **(notification.data or {}),
-                            },
-                        )
+        elif channel == NotificationChannel.PUSH:
+            deliver_push.delay(delivery.id)
+            return True
 
-                    if result.get('status') == 'sent':
-                        delivery.status = DeliveryStatus.SENT
-                        delivery.provider_message_id = result.get('message_id', '')
-                    elif result.get('success_count', 0) > 0:
-                        delivery.status = DeliveryStatus.SENT
-                    else:
-                        delivery.status = DeliveryStatus.FAILED
-                        delivery.error_message = result.get('error', 'Unknown error')
+        elif channel == NotificationChannel.SMS:
+            deliver_sms.delay(delivery.id)
+            return True
 
-                    delivery.sent_at = timezone.now()
-                    delivery.save()
-                    return delivery.status != DeliveryStatus.FAILED
-                else:
-                    delivery.status = DeliveryStatus.FAILED
-                    delivery.error_message = 'No active devices'
-                    delivery.save()
-                    return False
-
-            elif channel == NotificationChannel.SMS:
-                phone = user.phone_number
-                if phone:
-                    sms_body = notification.body[:160]
-                    result = SMSService.send_sms(phone, sms_body)
-
-                    delivery.status = (
-                        DeliveryStatus.SENT if result.get('status') == 'sent'
-                        else DeliveryStatus.FAILED
-                    )
-                    delivery.provider_message_id = result.get('message_id', '')
-                    delivery.sent_at = timezone.now()
-                    delivery.provider_response = result
-                    if result.get('status') != 'sent':
-                        delivery.error_message = result.get('error', '')
-                    delivery.save()
-                    return delivery.status == DeliveryStatus.SENT
-                else:
-                    delivery.status = DeliveryStatus.FAILED
-                    delivery.error_message = 'No phone number'
-                    delivery.save()
-                    return False
-
-            elif channel == NotificationChannel.EMAIL:
-                email = user.email
-                if email:
-                    result = EmailService.send_email(
-                        email,
-                        notification.title,
-                        notification.body,
-                    )
-
-                    delivery.status = (
-                        DeliveryStatus.SENT if result.get('status') == 'sent'
-                        else DeliveryStatus.FAILED
-                    )
-                    delivery.sent_at = timezone.now()
-                    if result.get('status') != 'sent':
-                        delivery.error_message = result.get('error', '')
-                    delivery.save()
-                    return delivery.status == DeliveryStatus.SENT
-                else:
-                    delivery.status = DeliveryStatus.FAILED
-                    delivery.error_message = 'No email address'
-                    delivery.save()
-                    return False
-
-        except Exception as e:
-            logger.error(f"Delivery failed for notification {notification.id}: {str(e)}")
-            delivery.status = DeliveryStatus.FAILED
-            delivery.error_message = str(e)
-            delivery.save()
-            return False
+        elif channel == NotificationChannel.EMAIL:
+            deliver_email.delay(delivery.id)
+            return True
 
         return False
-
+    
     @classmethod
     def _get_recipient(cls, user, channel):
         if channel == NotificationChannel.EMAIL:
