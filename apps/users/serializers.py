@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.exceptions import AuthenticationFailed
 
-from apps.core.serializers import BaseSerializer, DynamicFieldsMixin
+from apps.core.serializers import BaseSerializer, DynamicFieldsMixin, ReCaptchaField
 from apps.core.utils import generate_otp
 from apps.users.models import User, UserProfile, UserRole, Role, LoginHistory, IDVerificationStatus
 
@@ -27,10 +27,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     )
     accepted_terms = serializers.BooleanField(required=True)
     accepted_privacy = serializers.BooleanField(required=True)
+    recaptcha = ReCaptchaField(action='register')
 
     class Meta:
         model = User
-        fields = ['email', 'phone_number', 'first_name', 'last_name', 'password', 'password_confirm', 'accepted_terms', 'accepted_privacy']
+        fields = ['email', 'phone_number', 'first_name', 'last_name', 'password', 'password_confirm', 'accepted_terms', 'accepted_privacy', 'recaptcha']
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -80,6 +81,7 @@ class UserLoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(required=True, style={'input_type': 'password'})
     device_info = serializers.CharField(required=False, allow_blank=True)
+    recaptcha = ReCaptchaField(action='login', required=False)
 
     def validate(self, data):
         email = data.get('email', '').lower().strip()
@@ -223,6 +225,7 @@ class PasswordChangeSerializer(serializers.Serializer):
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
+    recaptcha = ReCaptchaField(action='password_reset')
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):

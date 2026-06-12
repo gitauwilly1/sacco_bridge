@@ -539,3 +539,7 @@ if 'test' in os.environ.get('DJANGO_SETTINGS_MODULE', ''):
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
+
+    # reCAPTCHA
+RECAPTCHA_SITE_KEY = env('RECAPTCHA_SITE_KEY', default='')
+RECAPTCHA_SECRET_KEY = env('RECAPTCHA_SECRET_KEY', default='')
