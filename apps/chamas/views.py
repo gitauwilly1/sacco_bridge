@@ -14,6 +14,7 @@ from apps.core.exceptions import (
     PermissionDeniedError
 )
 from apps.core.pagination import SmallPagination
+from apps.core.mixins import SoftDeleteMixin
 from apps.chamas.models import (
     Chama, ChamaMember, Contribution, Loan, LoanRepayment,
     Meeting, MeetingAttendance, MemberRole, LoanStatus,
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
     partial_update=extend_schema(tags=['Chamas'], summary='Partial update chama'),
     destroy=extend_schema(tags=['Chamas'], summary='Delete chama'),
 )
-class ChamaViewSet(viewsets.ModelViewSet):
+class ChamaViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = ChamaSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -115,7 +116,7 @@ class ChamaViewSet(viewsets.ModelViewSet):
     retrieve=extend_schema(tags=['Chamas'], summary='Get member details'),
     partial_update=extend_schema(tags=['Chamas'], summary='Update member role'),
 )
-class ChamaMemberViewSet(viewsets.ModelViewSet):
+class ChamaMemberViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = ChamaMemberSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -139,7 +140,7 @@ class ChamaMemberViewSet(viewsets.ModelViewSet):
     create=extend_schema(tags=['Contributions'], summary='Record contribution'),
     retrieve=extend_schema(tags=['Contributions'], summary='Get contribution details'),
 )
-class ContributionViewSet(viewsets.ModelViewSet):
+class ContributionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = ContributionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -211,7 +212,7 @@ class ContributionViewSet(viewsets.ModelViewSet):
     create=extend_schema(tags=['Loans'], summary='Apply for loan'),
     retrieve=extend_schema(tags=['Loans'], summary='Get loan details'),
 )
-class LoanViewSet(viewsets.ModelViewSet):
+class LoanViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = LoanSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -344,7 +345,7 @@ class LoanViewSet(viewsets.ModelViewSet):
     create=extend_schema(tags=['Meetings'], summary='Schedule meeting'),
     retrieve=extend_schema(tags=['Meetings'], summary='Get meeting details'),
 )
-class MeetingViewSet(viewsets.ModelViewSet):
+class MeetingViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = MeetingSerializer
     permission_classes = [permissions.IsAuthenticated]
