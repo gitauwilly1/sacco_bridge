@@ -204,10 +204,18 @@ class OpportunityViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
     pagination_class = SmallPagination
 
     def get_queryset(self):
+        # Get SACCOs where the current user has verified holdings
+        user_saccos = SACCOMemberHolding.objects.filter(
+            user=self.request.user,
+            verification_status='VERIFIED',
+            is_deleted=False,
+        ).values_list('sacco_id', flat=True)
+
         return LiquidityRequest.objects.filter(
             status=LiquidityRequestStatus.ACTIVE,
+            sacco_id__in=user_saccos,
             sacco__trading_halted=False,
-            is_deleted=False
+            is_deleted=False,
         ).exclude(seller=self.request.user)
 
     @action(detail=True, methods=['post'])
@@ -222,6 +230,25 @@ class OpportunityViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
                     'message': _('This request is no longer active.')
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify buyer is a member of the same SACCO
+        is_member = SACCOMemberHolding.objects.filter(
+            user=request.user,
+            sacco=liquidity_request.sacco,
+            verification_status='VERIFIED',
+            is_deleted=False,
+        ).exists()
+
+        if not is_member:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'not_a_member',
+                    'message': _('You must be a verified member of {sacco} to express interest.').format(
+                        sacco=liquidity_request.sacco.name
+                    )
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
 
         interest, created = BuyerInterest.objects.get_or_create(
             liquidity_request=liquidity_request,
@@ -250,7 +277,6 @@ class OpportunityViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
             'data': BuyerInterestSerializer(interest).data,
             'message': _('Interest expressed. Seller will be notified.'),
         })
-
 
 @extend_schema_view(
     list=extend_schema(tags=['Investments'], summary='List my connections'),
@@ -288,6 +314,26 @@ class ConnectionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         if request.user != connection.buyer and request.user != connection.seller:
             raise PermissionDeniedError()
 
+        # Verify buyer is still a verified member of the SACCO
+        if request.user == connection.buyer:
+            is_member = SACCOMemberHolding.objects.filter(
+                user=request.user,
+                sacco=connection.liquidity_request.sacco,
+                verification_status='VERIFIED',
+                is_deleted=False,
+            ).exists()
+
+            if not is_member:
+                return Response({
+                    'success': False,
+                    'error': {
+                        'code': 'membership_required',
+                        'message': _('You must maintain verified membership in {sacco} to make an offer.').format(
+                            sacco=connection.liquidity_request.sacco.name
+                        )
+                    }
+                }, status=status.HTTP_403_FORBIDDEN)
+
         offer = Offer.objects.create(
             connection=connection,
             offered_by=request.user,
@@ -304,7 +350,7 @@ class ConnectionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             'data': OfferSerializer(offer).data,
             'message': _('Offer submitted.'),
         })
-
+    
     @action(detail=True, methods=['post'], url_path='offers/(?P<offer_pk>[^/.]+)/accept')
     def accept_offer(self, request, pk=None, offer_pk=None):
         connection = self.get_object()
