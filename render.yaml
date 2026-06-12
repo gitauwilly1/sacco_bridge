@@ -6,7 +6,7 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
-      python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts
+      python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal
       python manage.py migrate
       python manage.py create_roles
       python manage.py create_notification_templates

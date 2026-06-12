@@ -74,6 +74,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     email_verification_expiry = models.DateTimeField(null=True, blank=True)
     phone_verification_code = models.CharField(max_length=6, blank=True, default='')
     phone_verification_expiry = models.DateTimeField(null=True, blank=True)
+    email_verification_code = models.CharField(max_length=6, blank=True, default='')
+    email_verification_expiry = models.DateTimeField(null=True, blank=True)
+    email_verification_attempts = models.PositiveIntegerField(default=0)
+    email_last_verification_sent = models.DateTimeField(null=True, blank=True)
+    
+    phone_verification_code = models.CharField(max_length=6, blank=True, default='')
+    phone_verification_expiry = models.DateTimeField(null=True, blank=True)
+    phone_verification_attempts = models.PositiveIntegerField(default=0)
+    phone_last_verification_sent = models.DateTimeField(null=True, blank=True)
+
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)

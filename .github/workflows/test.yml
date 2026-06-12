@@ -62,6 +62,11 @@ jobs:
       GEMINI_MODEL: gemini-1.5-flash
       SENTRY_DSN: https://test@test.ingest.sentry.io/0
       FIREBASE_CREDENTIALS_PATH: /tmp/fake-firebase.json
+      CLOUDINARY_CLOUD_NAME: ci-test-cloud
+      CLOUDINARY_API_KEY: ci-test-key
+      CLOUDINARY_API_SECRET: ci-test-secret
+      RECAPTCHA_SITE_KEY: ci-test-site-key
+      RECAPTCHA_SECRET_KEY: ci-test-secret-key
       
     steps:
       - name: Checkout code
@@ -81,7 +86,7 @@ jobs:
 
       - name: Run migrations
         run: |
-          python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts
+          python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal
           python manage.py migrate
 
       - name: Run tests

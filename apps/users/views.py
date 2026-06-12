@@ -171,7 +171,8 @@ class EmailVerificationView(APIView):
         user.email_verified = True
         user.email_verification_code = ''
         user.email_verification_expiry = None
-        user.save(update_fields=['email_verified', 'email_verification_code', 'email_verification_expiry'])
+        user.email_verification_attempts = 0
+        user.save(update_fields=['email_verified', 'email_verification_code', 'email_verification_expiry', 'email_verification_attempts'])
         return Response({'success': True, 'data': {'email': user.email, 'email_verified': True, 'message': _('Email verified.')}})
 
 
@@ -188,7 +189,8 @@ class PhoneVerificationView(APIView):
         user.phone_verified = True
         user.phone_verification_code = ''
         user.phone_verification_expiry = None
-        user.save(update_fields=['phone_verified', 'phone_verification_code', 'phone_verification_expiry'])
+        user.phone_verification_attempts = 0
+        user.save(update_fields=['phone_verified', 'phone_verification_code', 'phone_verification_expiry', 'phone_verification_attempts'])
         return Response({'success': True, 'data': {'phone_number': user.phone_number, 'phone_verified': True, 'message': _('Phone verified.')}})
 
 
@@ -204,13 +206,24 @@ class ResendVerificationView(APIView):
         user = serializer.validated_data['user']
         method = serializer.validated_data['method']
 
-        if method == 'email':
-            AuthenticationService.send_verification_email(user)
-        else:
-            AuthenticationService.send_verification_sms(user)
+        try:
+            if method == 'email':
+                AuthenticationService.send_verification_email(user)
+            else:
+                AuthenticationService.send_verification_sms(user)
+        except ValueError as e:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'rate_limited',
+                    'message': str(e)
+                }
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
-        return Response({'success': True, 'data': {'message': _('Verification code sent.')}})
-
+        return Response({
+            'success': True,
+            'data': {'message': _('Verification code sent.')}
+        })
 
 class GoogleAuthView(APIView):
 

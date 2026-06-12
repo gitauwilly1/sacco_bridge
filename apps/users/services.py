@@ -52,41 +52,102 @@ class AuthenticationService:
 
     @staticmethod
     def send_verification_email(user):
+        # Rate limit check
+        if user.email_last_verification_sent:
+            elapsed = (timezone.now() - user.email_last_verification_sent).total_seconds()
+            if elapsed < 60:
+                wait = int(60 - elapsed)
+                raise ValueError(
+                    _('Please wait %(seconds)d seconds before requesting another code.') % {'seconds': wait}
+                )
+
+        # Attempt limit check
+        if user.email_verification_attempts >= 5:
+            raise ValueError(
+                _('Too many attempts. Please contact support.')
+            )
+
+        # Generate and save OTP
         otp = generate_otp()
         user.email_verification_code = otp
         user.email_verification_expiry = timezone.now() + timezone.timedelta(hours=24)
-        user.save(update_fields=['email_verification_code', 'email_verification_expiry'])
+        user.email_verification_attempts += 1
+        user.email_last_verification_sent = timezone.now()
+        user.save(update_fields=[
+            'email_verification_code', 'email_verification_expiry',
+            'email_verification_attempts', 'email_last_verification_sent'
+        ])
 
-        subject = _('Verify your email address - Sacco Bridge')
-        html_message = render_to_string('emails/verify_email.html', {'user': user, 'otp': otp, 'expiry_hours': 24})
+        subject = 'Your Sacco Bridge Verification Code'
+        html_message = render_to_string('emails/verify_email.html', {
+            'user': user,
+            'otp': otp,
+            'expiry_hours': 24,
+        })
 
+        # Send email
         try:
-            send_mail(subject=subject, message='', from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=[user.email], html_message=html_message, fail_silently=False)
+            send_mail(
+                subject=subject,
+                message='',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                html_message=html_message,
+                fail_silently=False,
+            )
             logger.info(f"Verification email sent to {user.email}")
         except Exception as e:
             logger.error(f"Failed to send verification email: {str(e)}")
+            # Fallback: print to console in development
+            if settings.DEBUG:
+                print(f"\n{'='*60}")
+                print(f"EMAIL OTP for {user.email}: {otp}")
+                print(f"{'='*60}\n")
             raise
-
+        
     @staticmethod
     def send_verification_sms(user):
+        # Rate limit check
+        if user.phone_last_verification_sent:
+            elapsed = (timezone.now() - user.phone_last_verification_sent).total_seconds()
+            if elapsed < 60:
+                wait = int(60 - elapsed)
+                raise ValueError(
+                    _('Please wait %(seconds)d seconds before requesting another code.') % {'seconds': wait}
+                )
+
+        # Attempt limit check
+        if user.phone_verification_attempts >= 5:
+            raise ValueError(
+                _('Too many attempts. Please contact support.')
+            )
+
+        # Generate OTP
         otp = generate_otp()
         user.phone_verification_code = otp
         user.phone_verification_expiry = timezone.now() + timezone.timedelta(hours=24)
-        user.save(update_fields=['phone_verification_code', 'phone_verification_expiry'])
+        user.phone_verification_attempts += 1
+        user.phone_last_verification_sent = timezone.now()
+        user.save(update_fields=[
+            'phone_verification_code', 'phone_verification_expiry',
+            'phone_verification_attempts', 'phone_last_verification_sent'
+        ])
 
+        # Format message
         message = (
             f"Your Sacco Bridge verification code is: {otp}. "
-            f"This code expires in 24 hours. Do not share it with anyone."
+            f"Valid for 24 hours. Do not share this code."
         )
 
-        # Format phone number for Africa's Talking (remove leading 0, add +254)
+        # Format phone number
         phone = user.phone_number
-        if phone.startswith('0'):
+        if phone and phone.startswith('0'):
             phone = '+254' + phone[1:]
-        elif not phone.startswith('+'):
+        elif phone and not phone.startswith('+'):
             phone = '+254' + phone
 
-        # Try Africa's Talking first
+        # Try Africa's Talking
+        sms_sent = False
         try:
             import africastalking
 
@@ -95,23 +156,36 @@ class AuthenticationService:
                 settings.AFRICASTALKING_API_KEY
             )
             sms = africastalking.SMS
+            
             response = sms.send(message, [phone])
-            logger.info(f"SMS sent to {phone}: {response}")
-            return otp
+            logger.info(f"SMS response: {response}")
+
+            # Check if SMS was actually sent
+            recipients = response.get('SMSMessageData', {}).get('Recipients', [])
+            if recipients:
+                status = recipients[0].get('status')
+                if status == 'Success':
+                    sms_sent = True
+                    logger.info(f"SMS sent successfully to {phone}")
+                else:
+                    logger.warning(f"SMS failed with status: {status}")
+            else:
+                logger.warning("No recipient data in SMS response")
 
         except Exception as e:
-            logger.warning(f"Africa's Talking SMS failed: {str(e)}")
+            logger.warning(f"Africa's Talking SMS error: {str(e)}")
 
-            # Fallback: print OTP to console for development
+        # Fallback for development
+        if not sms_sent:
             logger.info("=" * 60)
-            logger.info(f"DEVELOPMENT MODE - SMS OTP for {phone}: {otp}")
+            logger.info(f"SMS OTP for {user.phone_number}: {otp}")
             logger.info("=" * 60)
             print(f"\n{'='*60}")
             print(f"SMS OTP for {user.phone_number}: {otp}")
             print(f"{'='*60}\n")
 
-            return otp
-    
+        return otp
+        
     @staticmethod
     def send_password_reset_email(user):
         from django.contrib.auth.tokens import default_token_generator

@@ -72,6 +72,9 @@ firebase-admin==6.5.0
 # QR Code & 2FA
 pyotp==2.9.0
 
+# Timezone
+pytz==2024.2
+
 # Encryption
 cryptography==42.0.8
 
