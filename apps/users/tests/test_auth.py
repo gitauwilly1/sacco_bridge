@@ -21,6 +21,7 @@ class TestRegistration:
             'password_confirm': 'SecurePass@2026',
             'accepted_terms': True,
             'accepted_privacy': True,
+            'recaptcha': 'test-token'
         }
 
     def test_register_success(self):
