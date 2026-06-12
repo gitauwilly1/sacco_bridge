@@ -213,3 +213,84 @@ def retry_failed_deliveries(self):
 
     logger.info(f"Retried {retried} failed deliveries")
     return {'retried': retried}
+
+@shared_task(
+    name='apps.notifications.tasks.queue_notification',
+    bind=True,
+    max_retries=2,
+    default_retry_delay=30,
+)
+def queue_notification(self, user_id, category, title, body, priority='MEDIUM',
+    template_name=None, action_url='', action_text='', data=None):
+    from apps.users.models import User
+    from apps.notifications.services import NotificationService
+    from apps.notifications.models import NotificationPriority
+
+    try:
+        user = User.objects.get(id=user_id, is_active=True)
+    except User.DoesNotExist:
+        logger.warning(f"User {user_id} not found for notification")
+        return {'error': 'User not found'}
+
+    try:
+        if template_name:
+            NotificationService.create_from_template(
+                user=user,
+                template_name=template_name,
+                context=data or {},
+                action_url=action_url,
+            )
+        else:
+            NotificationService.create_notification(
+                user=user,
+                category=category,
+                title=title,
+                body=body,
+                priority=getattr(NotificationPriority, priority, NotificationPriority.MEDIUM),
+                action_url=action_url,
+                action_text=action_text,
+                data=data,
+            )
+        return {'status': 'queued'}
+    except Exception as e:
+        logger.error(f"Failed to create notification for user {user_id}: {e}")
+        raise self.retry(exc=e)
+
+
+@shared_task(
+    name='apps.notifications.tasks.queue_bulk_notification',
+    bind=True,
+    max_retries=1,
+    default_retry_delay=60,
+)
+def queue_bulk_notification(self, user_ids, category, title, body, priority='MEDIUM',
+    action_url='', action_text='', data=None):
+    from apps.users.models import User
+    from apps.notifications.models import NotificationPriority
+
+    batch_size = 50
+    processed = 0
+    failed = 0
+
+    for i in range(0, len(user_ids), batch_size):
+        batch = user_ids[i:i + batch_size]
+        users = User.objects.filter(id__in=batch, is_active=True)
+
+        for user in users:
+            try:
+                queue_notification.delay(
+                    user_id=str(user.id),
+                    category=category,
+                    title=title,
+                    body=body,
+                    priority=priority,
+                    action_url=action_url,
+                    action_text=action_text,
+                    data=data,
+                )
+                processed += 1
+            except Exception as e:
+                logger.error(f"Failed to queue notification for user {user.id}: {e}")
+                failed += 1
+
+    return {'processed': processed, 'failed': failed}
