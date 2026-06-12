@@ -60,6 +60,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         validated_data.pop('password_confirm')
         validated_data.pop('accepted_terms')
         validated_data.pop('accepted_privacy')
+        validated_data.pop('recaptcha', None)
         password = validated_data.pop('password')
 
         user = User.objects.create_user(password=password, **validated_data)
