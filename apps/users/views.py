@@ -372,6 +372,132 @@ class LoginHistoryView(APIView):
         return Response({'success': True, 'data': {'login_history': serializer.data, 'total_logins': LoginHistory.objects.filter(user=request.user).count()}})
     
 
+class TwoFactorRecoveryRequestView(APIView):
+
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        tags=['Authentication'],
+        summary='Request 2FA recovery email',
+        description='Send a recovery link to the user email to disable 2FA.'
+    )
+    def post(self, request):
+        email = request.data.get('email', '').lower().strip()
+        if not email:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_email', 'message': _('Email is required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email__iexact=email, two_factor_enabled=True)
+        except User.DoesNotExist:
+            return Response({
+                'success': True,
+                'data': {'message': _('If an account with 2FA exists, a recovery link has been sent.')}
+            })
+
+        TwoFactorService.send_2fa_recovery_email(user)
+
+        return Response({
+            'success': True,
+            'data': {'message': _('If an account with 2FA exists, a recovery link has been sent.')}
+        })
+
+
+class TwoFactorRecoveryConfirmView(APIView):
+
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        tags=['Authentication'],
+        summary='Confirm 2FA recovery',
+        description='Disable 2FA using the recovery token from email.'
+    )
+    def post(self, request):
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_decode
+        from django.utils.encoding import force_str
+
+        uidb64 = request.data.get('uidb64', '')
+        token = request.data.get('token', '')
+
+        if not uidb64 or not token:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_params', 'message': _('uidb64 and token are required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid, two_factor_enabled=True)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_token', 'message': _('Invalid or expired recovery link.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not default_token_generator.check_token(user, token):
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_token', 'message': _('Invalid or expired recovery token.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        user.totp_secret = ''
+        user.two_factor_enabled = False
+        user.backup_codes = []
+        user.save(update_fields=['totp_secret', 'two_factor_enabled', 'backup_codes'])
+
+        logger.info(f"2FA recovered via email for user {user.email}")
+
+        return Response({
+            'success': True,
+            'data': {'message': _('2FA has been disabled. You can now login without an authenticator code.')},
+            'message': _('2FA recovery successful'),
+        })
+
+
+class TwoFactorDisableWithBackupView(APIView):
+
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        tags=['Authentication'],
+        summary='Disable 2FA with backup code',
+        description='Disable 2FA using one of the backup codes from setup.'
+    )
+    def post(self, request):
+        email = request.data.get('email', '').lower().strip()
+        backup_code = request.data.get('backup_code', '').strip()
+
+        if not email or not backup_code:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_params', 'message': _('email and backup_code are required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email__iexact=email, two_factor_enabled=True)
+        except User.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('No account found with 2FA enabled.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            TwoFactorService.disable_with_backup_code(user, backup_code)
+        except ValueError as e:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_code', 'message': str(e)}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'success': True,
+            'data': {'message': _('2FA has been disabled using backup code.')},
+            'message': _('2FA disabled successfully'),
+        })
+
 class PasswordResetConfirmView(APIView):
 
     permission_classes = [permissions.AllowAny]
