@@ -8,6 +8,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.core.exceptions import PermissionDeniedError
 from apps.core.pagination import SmallPagination
+from apps.core.mixins import SoftDeleteMixin
 from apps.transactions.models import (
     SettlementIntent, SettlementEvent, LedgerEntry,
     SettlementReversal, SettlementState, DisputeResolutionType
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
     list=extend_schema(tags=['Settlements'], summary='List my settlements'),
     retrieve=extend_schema(tags=['Settlements'], summary='Get settlement details'),
 )
-class SettlementViewSet(viewsets.ModelViewSet):
+class SettlementViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = SettlementIntentSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -80,7 +81,7 @@ class SettlementViewSet(viewsets.ModelViewSet):
     list=extend_schema(tags=['Settlements'], summary='List disputed settlements'),
     retrieve=extend_schema(tags=['Settlements'], summary='Get dispute details'),
 )
-class DisputeViewSet(viewsets.ModelViewSet):
+class DisputeViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = SettlementIntentSerializer
     permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
@@ -171,7 +172,7 @@ class DisputeViewSet(viewsets.ModelViewSet):
     list=extend_schema(tags=['Settlements'], summary='List ledger entries'),
     retrieve=extend_schema(tags=['Settlements'], summary='Get ledger entry'),
 )
-class LedgerViewSet(viewsets.ReadOnlyModelViewSet):
+class LedgerViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
 
     serializer_class = LedgerEntrySerializer
     permission_classes = [permissions.IsAuthenticated]

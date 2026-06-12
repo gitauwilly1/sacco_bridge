@@ -5,6 +5,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.pagination import SmallPagination
+from apps.core.mixins import SoftDeleteMixin
 from apps.notifications.models import (
     Notification, UserDevice, NotificationPreference,
     NotificationCategory
@@ -20,7 +21,7 @@ from apps.notifications.services import NotificationService
     list=extend_schema(tags=['Notifications'], summary='List notifications'),
     retrieve=extend_schema(tags=['Notifications'], summary='Get notification'),
 )
-class NotificationViewSet(viewsets.ModelViewSet):
+class NotificationViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]

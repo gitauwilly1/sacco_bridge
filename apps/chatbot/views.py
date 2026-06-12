@@ -6,6 +6,7 @@ from rest_framework.viewsets import ModelViewSet
 from drf_spectacular.utils import extend_schema
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.mixins import SoftDeleteMixin
 from apps.chatbot.models import (
     ChatSession, ChatMessage, KnowledgeArticle,
     SessionType
@@ -18,7 +19,7 @@ from apps.chatbot.services import GeminiService, KnowledgeService
 from apps.users.permissions import IsPlatformStaff
 
 
-class ChatSessionViewSet(ModelViewSet):
+class ChatSessionViewSet(SoftDeleteMixin, ModelViewSet):
 
     serializer_class = ChatSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -93,7 +94,7 @@ class ChatSessionViewSet(ModelViewSet):
         })
 
 
-class KnowledgeArticleViewSet(ModelViewSet):
+class KnowledgeArticleViewSet(SoftDeleteMixin, ModelViewSet):
 
     serializer_class = KnowledgeArticleSerializer
     permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]

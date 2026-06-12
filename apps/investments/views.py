@@ -12,6 +12,7 @@ from apps.core.exceptions import (
     InsufficientFundsError, VerificationError, PermissionDeniedError
 )
 from apps.core.pagination import SmallPagination
+from apps.core.mixins import SoftDeleteMixin
 from apps.investments.models import (
     SACCO, SACCOShareClass, SACCOMemberHolding,
     LiquidityRequest, BuyerInterest, Connection, Offer,
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
     list=extend_schema(tags=['Investments'], summary='List verified SACCOs'),
     retrieve=extend_schema(tags=['Investments'], summary='Get SACCO details'),
 )
-class SACCOViewSet(viewsets.ReadOnlyModelViewSet):
+class SACCOViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
 
     serializer_class = SACCOSerializer
     permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
@@ -62,7 +63,7 @@ class SACCOViewSet(viewsets.ReadOnlyModelViewSet):
     partial_update=extend_schema(tags=['Admin'], summary='[Admin] Partial update SACCO'),
     destroy=extend_schema(tags=['Admin'], summary='[Admin] Delete SACCO'),
 )
-class AdminSACCOViewSet(viewsets.ModelViewSet):
+class AdminSACCOViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = SACCOSerializer
     permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
@@ -114,7 +115,7 @@ class AdminSACCOViewSet(viewsets.ModelViewSet):
     list=extend_schema(tags=['Investments'], summary='List my SACCO holdings'),
     retrieve=extend_schema(tags=['Investments'], summary='Get holding details'),
 )
-class SACCOHoldingViewSet(viewsets.ReadOnlyModelViewSet):
+class SACCOHoldingViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
 
     serializer_class = SACCOMemberHoldingSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -131,7 +132,7 @@ class SACCOHoldingViewSet(viewsets.ReadOnlyModelViewSet):
     create=extend_schema(tags=['Investments'], summary='Create liquidity request'),
     retrieve=extend_schema(tags=['Investments'], summary='Get request details'),
 )
-class LiquidityRequestViewSet(viewsets.ModelViewSet):
+class LiquidityRequestViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = LiquidityRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
@@ -196,7 +197,7 @@ class LiquidityRequestViewSet(viewsets.ModelViewSet):
     list=extend_schema(tags=['Investments'], summary='Browse active liquidity requests'),
     retrieve=extend_schema(tags=['Investments'], summary='Get request details'),
 )
-class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
+class OpportunityViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
 
     serializer_class = LiquidityRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
@@ -255,7 +256,7 @@ class OpportunityViewSet(viewsets.ReadOnlyModelViewSet):
     list=extend_schema(tags=['Investments'], summary='List my connections'),
     retrieve=extend_schema(tags=['Investments'], summary='Get connection details'),
 )
-class ConnectionViewSet(viewsets.ModelViewSet):
+class ConnectionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = ConnectionSerializer
     permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
