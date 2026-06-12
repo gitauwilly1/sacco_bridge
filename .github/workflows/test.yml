@@ -65,8 +65,8 @@ jobs:
       CLOUDINARY_CLOUD_NAME: ci-test-cloud
       CLOUDINARY_API_KEY: ci-test-key
       CLOUDINARY_API_SECRET: ci-test-secret
-      RECAPTCHA_SITE_KEY: ci-test-site-key
-      RECAPTCHA_SECRET_KEY: ci-test-secret-key
+      RECAPTCHA_SITE_KEY: ''
+      RECAPTCHA_SECRET_KEY: ''
       
     steps:
       - name: Checkout code
