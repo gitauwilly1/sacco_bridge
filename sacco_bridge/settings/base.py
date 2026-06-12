@@ -331,25 +331,15 @@ AXES_LOCKOUT_URL = '/api/v1/auth/locked-out/'
 # Spectacular settings for OpenAPI/Swagger
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Sacco Bridge API',
-    'DESCRIPTION': '''
-    Sacco Bridge is a dual-mode platform that digitizes chama (informal savings group) 
-    management and facilitates secondary market liquidity for SACCO shares.
-    
-    ## Key Features
-    - Chama digitization with automated M-Pesa contribution tracking
-    - Digital loan management within chamas
-    - SACCO share liquidity connections between verified buyers and sellers
-    - Atomic settlement coordination with trustee-backed guarantees
-    - Structured dispute resolution with immutable audit trails
-    
-    ## Authentication
-    All API endpoints (except registration and login) require JWT authentication.
-    Include the token in the Authorization header: `Bearer <your-token>`
-    
-    ## Rate Limiting
-    - Anonymous: 100 requests/hour
-    - Authenticated: 1000 requests/hour
-    ''',
+    'DESCRIPTION': 'Sacco Bridge is a dual-mode platform that digitizes chama (informal savings group) '
+                   'management and facilitates secondary market liquidity for SACCO shares. '
+                   'Key features include chama digitization with automated M-Pesa contribution tracking, '
+                   'digital loan management within chamas, SACCO share liquidity connections between '
+                   'verified buyers and sellers, atomic settlement coordination with trustee-backed '
+                   'guarantees, and structured dispute resolution with immutable audit trails. '
+                   'All API endpoints (except registration and login) require JWT authentication. '
+                   'Include the token in the Authorization header as: Bearer <your-token>. '
+                   'Rate limiting: Anonymous users 100 requests per hour, Authenticated users 1000 requests per hour.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
@@ -372,9 +362,11 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Settlements', 'description': 'Transaction settlement tracking and dispute resolution'},
         {'name': 'Notifications', 'description': 'Push notifications, SMS, and email alerts'},
         {'name': 'Analytics', 'description': 'Platform analytics and reporting'},
+        {'name': 'Chatbot', 'description': 'AI-powered assistant for platform guidance'},
+        {'name': 'M-Pesa', 'description': 'Mobile money payments and STK push integration'},
+        {'name': 'Receipts', 'description': 'PDF receipt generation and download'},
     ],
 }
-
 # Encryption key for sensitive data
 ENCRYPTION_KEY = env('ENCRYPTION_KEY')
 
