@@ -540,7 +540,20 @@ if 'test' in os.environ.get('DJANGO_SETTINGS_MODULE', ''):
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
-
+    
+    # Use local memory cache instead of Redis for tests
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    }
+    
+    # Disable throttling in tests
+    REST_FRAMEWORK = {
+        **REST_FRAMEWORK,
+        'DEFAULT_THROTTLE_CLASSES': [],
+    }
+    
     # reCAPTCHA
 RECAPTCHA_SITE_KEY = env('RECAPTCHA_SITE_KEY', default='')
 RECAPTCHA_SECRET_KEY = env('RECAPTCHA_SECRET_KEY', default='')
