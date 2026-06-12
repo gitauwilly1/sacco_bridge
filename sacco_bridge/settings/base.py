@@ -70,6 +70,7 @@ LOCAL_APPS = [
     'apps.chatbot',
     'apps.mpesa',
     'apps.receipts',
+    'apps.legal',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
