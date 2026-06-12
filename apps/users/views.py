@@ -129,12 +129,20 @@ class TwoFactorSetupView(APIView):
 
         secret = request.session.get('pending_totp_secret') or TwoFactorService.generate_totp_secret()
         try:
-            TwoFactorService.enable_two_factor(request.user, secret, serializer.validated_data['totp_code'])
+            backup_codes = TwoFactorService.enable_two_factor(request.user, secret, serializer.validated_data['totp_code'])
         except ValueError as e:
             raise VerificationError(str(e))
 
         request.session.pop('pending_totp_secret', None)
-        return Response({'success': True, 'data': {'two_factor_enabled': True, 'message': _('2FA enabled successfully.')}})
+        return Response({
+            'success': True,
+            'data': {
+                'two_factor_enabled': True,
+                'backup_codes': backup_codes,
+                'message': _('2FA enabled. Save your backup codes. They will not be shown again.'),
+            },
+            'message': _('2FA enabled successfully'),
+        })
 
     @extend_schema(tags=['Authentication'], summary='Disable two-factor authentication')
     def delete(self, request):
