@@ -8,7 +8,6 @@ services:
       python manage.py collectstatic --noinput
       python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal
       python manage.py migrate
-      python manage.py flush --no-input
       python manage.py create_roles
       python manage.py create_notification_templates
       python manage.py create_admin
