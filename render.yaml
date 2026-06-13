@@ -6,7 +6,7 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
-      python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal
+      python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal activity reports scoring escrow webhooks
       python manage.py migrate
       python manage.py create_roles
       python manage.py create_notification_templates
@@ -95,6 +95,8 @@ services:
         sync: false
       - key: RECAPTCHA_SECRET_KEY
         sync: false
+      - key: FIREBASE_CREDENTIALS_PATH
+        value: credentials/firebase-credentials.json
 
   - type: redis
     name: sacco-bridge-redis

@@ -86,7 +86,7 @@ jobs:
 
       - name: Run migrations
         run: |
-          python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal
+          python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal activity reports scoring escrow webhooks
           python manage.py migrate
 
       - name: Run tests
