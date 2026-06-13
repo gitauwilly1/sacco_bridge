@@ -247,6 +247,30 @@ class AuthenticationService:
                 print(f"INVITE SMS to {phone_number}: {message}")
                 print(f"{'='*60}\n")
 
+    @staticmethod
+    def send_verification_sms_for_signature(user, otp, document_title):
+        message = (
+            f"Your Sacco Bridge signature code for '{document_title}' is: {otp}. "
+            f"Valid for 10 minutes. Do not share this code."
+        )
+
+        phone = user.phone_number
+        if phone and phone.startswith('0'):
+            phone = '+254' + phone[1:]
+
+        if phone:
+            try:
+                import africastalking
+                africastalking.initialize(
+                    settings.AFRICASTALKING_USERNAME,
+                    settings.AFRICASTALKING_API_KEY
+                )
+                sms = africastalking.SMS
+                sms.send(message, [phone])
+            except Exception:
+                if settings.DEBUG:
+                    print(f"\nSIGNATURE OTP for {user.phone_number}: {otp}\n")
+
 class TwoFactorService:
 
     @staticmethod

@@ -3,7 +3,8 @@ from rest_framework.routers import SimpleRouter
 from apps.legal.views import (
     LatestTermsView, LatestPrivacyView,
     AcceptDocumentView, AcceptanceStatusView,
-    LegalDocumentViewSet,
+    LegalDocumentViewSet, SignatureVerifyView, 
+    SignatureRequestView, SignatureConfirmView
 )
 
 router = SimpleRouter()
@@ -15,4 +16,7 @@ urlpatterns = [
     path('privacy/', LatestPrivacyView.as_view(), name='legal-privacy'),
     path('accept/', AcceptDocumentView.as_view(), name='legal-accept'),
     path('status/', AcceptanceStatusView.as_view(), name='legal-status'),
+    path('sign/request/', SignatureRequestView.as_view(), name='legal-sign-request'),
+    path('sign/confirm/', SignatureConfirmView.as_view(), name='legal-sign-confirm'),
+    path('sign/verify/<str:certificate_hash>/', SignatureVerifyView.as_view(), name='legal-sign-verify'),
 ]

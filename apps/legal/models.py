@@ -141,3 +141,76 @@ class UserLegalAcceptance(models.Model):
 
     def __str__(self):
         return f"{self.user.email} accepted {self.document}"
+
+
+class SignableDocumentType(models.TextChoices):
+    LOAN_AGREEMENT = 'LOAN_AGREEMENT', _('Loan Agreement')
+    SHARE_TRANSFER = 'SHARE_TRANSFER', _('Share Transfer Form')
+    TERMS_ACCEPTANCE = 'TERMS_ACCEPTANCE', _('Terms & Conditions')
+    PRIVACY_ACCEPTANCE = 'PRIVACY_ACCEPTANCE', _('Privacy Policy')
+    CHAMA_CONSTITUTION = 'CHAMA_CONSTITUTION', _('Chama Constitution')
+
+
+class Signature(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    signer = models.ForeignKey(
+        'users.User', on_delete=models.PROTECT, related_name='signatures'
+    )
+
+    document_type = models.CharField(
+        max_length=30, choices=SignableDocumentType.choices
+    )
+
+    document_reference = models.CharField(
+        max_length=255,
+        help_text=_("Reference to the signed document (e.g., loan ID).")
+    )
+
+    document_title = models.CharField(max_length=255)
+
+    verification_method = models.CharField(
+        max_length=20,
+        choices=[('SMS_OTP', 'SMS OTP'), ('EMAIL_OTP', 'Email OTP'), ('TOTP', '2FA Code')],
+        default='SMS_OTP',
+    )
+
+    verification_code = models.CharField(
+        max_length=6, blank=True, default='',
+        help_text=_("OTP sent for verification (cleared after signing).")
+    )
+
+    verification_expiry = models.DateTimeField(null=True, blank=True)
+
+    signed_at = models.DateTimeField(null=True, blank=True)
+
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    user_agent = models.TextField(blank=True, default='')
+
+    certificate_hash = models.CharField(
+        max_length=64, blank=True, default='',
+        help_text=_("SHA256 hash of the signature certificate.")
+    )
+
+    is_verified = models.BooleanField(default=False, db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Signature')
+        verbose_name_plural = _('Signatures')
+        ordering = ['-created_at']
+        unique_together = ['signer', 'document_type', 'document_reference']
+
+    def __str__(self):
+        return f"{self.signer.get_full_name()} - {self.get_document_type_display()}"
+
+    def generate_certificate(self):
+        import hashlib
+        data = (
+            f"{self.signer.id}|{self.document_type}|{self.document_reference}|"
+            f"{self.signed_at.isoformat() if self.signed_at else ''}|{self.ip_address}"
+        )
+        return hashlib.sha256(data.encode()).hexdigest()
