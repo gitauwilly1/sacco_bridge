@@ -565,3 +565,23 @@ if 'test' in os.environ.get('DJANGO_SETTINGS_MODULE', ''):
     # reCAPTCHA
 RECAPTCHA_SITE_KEY = env('RECAPTCHA_SITE_KEY', default='')
 RECAPTCHA_SECRET_KEY = env('RECAPTCHA_SECRET_KEY', default='')
+
+
+# Transaction Limits (in KSh)
+TRANSACTION_LIMITS = {
+    'UNVERIFIED': {
+        'daily': 50000,
+        'monthly': 200000,
+        'per_transaction': 25000,
+    },
+    'VERIFIED': {
+        'daily': 500000,
+        'monthly': 2000000,
+        'per_transaction': 250000,
+    },
+    'PREMIUM': {
+        'daily': 2000000,
+        'monthly': 10000000,
+        'per_transaction': 1000000,
+    },
+}

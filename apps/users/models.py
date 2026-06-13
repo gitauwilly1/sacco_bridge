@@ -111,6 +111,20 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     trust_score = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
 
+    # Transaction limits
+    daily_transaction_limit = models.DecimalField(
+        max_digits=15, decimal_places=2, default=50000.00,
+        help_text=_("Maximum daily transaction amount.")
+    )
+    monthly_transaction_limit = models.DecimalField(
+        max_digits=15, decimal_places=2, default=200000.00,
+        help_text=_("Maximum monthly transaction amount.")
+    )
+    per_transaction_limit = models.DecimalField(
+        max_digits=15, decimal_places=2, default=25000.00,
+        help_text=_("Maximum single transaction amount.")
+    )
+
     objects = UserManager()
 
     USERNAME_FIELD = 'email'

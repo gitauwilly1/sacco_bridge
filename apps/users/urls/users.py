@@ -1,7 +1,7 @@
 
 from django.urls import path
 from apps.users.views import (
-    AccountDeletionView, AccountDeactivationView, ActiveSessionsView, AdminUserManagementView, AuditLogView, DataExportView, ProfilePictureUploadView, UserProfileView, UserProfileDetailView,
+    AccountDeletionView, AccountDeactivationView, ActiveSessionsView, AdminUserManagementView, AuditLogView, DataExportView, ProfilePictureUploadView, TransactionLimitsView, UserProfileView, UserProfileDetailView,
     LoginHistoryView,PhoneNumberUpdateView,
 )
 
@@ -18,4 +18,5 @@ urlpatterns = [
     path('export-data/', DataExportView.as_view(), name='user-export-data'),  
     path('deactivate/', AccountDeactivationView.as_view(), name='user-deactivate'),
     path('admin/audit/', AuditLogView.as_view(), name='admin-audit-log'),
+    path('limits/', TransactionLimitsView.as_view(), name='user-limits'),
 ]

@@ -1272,3 +1272,23 @@ class AuditLogView(APIView):
                 'total': logs.count(),
             },
         })
+
+
+class TransactionLimitsView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Get transaction limits',
+        description='View current transaction limits and remaining amounts.'
+    )
+    def get(self, request):
+        from apps.core.limits import TransactionLimitService
+
+        limits = TransactionLimitService.get_remaining_limits(request.user)
+
+        return Response({
+            'success': True,
+            'data': limits,
+        })
