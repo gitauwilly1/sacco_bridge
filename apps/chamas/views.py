@@ -52,7 +52,7 @@ class ChamaViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             memberships__user=self.request.user,
             memberships__is_active=True,
             is_deleted=False
-        ).distinct()
+        ).distinct().prefetch_related('memberships', 'share_classes')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -130,7 +130,7 @@ class ChamaMemberViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return ChamaMember.objects.filter(
             chama_id=chama_id,
             chama__is_deleted=False
-        )
+        ).select_related('user', 'chama')
 
     def perform_update(self, serializer):
         member = self.get_object()
@@ -157,7 +157,7 @@ class ContributionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return Contribution.objects.filter(
             chama_id=chama_id,
             chama__is_deleted=False
-        )
+        ).select_related('member__user', 'chama', 'verified_by__user')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -231,7 +231,7 @@ class LoanViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return Loan.objects.filter(
             chama_id=chama_id,
             chama__is_deleted=False
-        )
+        ).select_related('borrower__user', 'chama', 'approved_by__user')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -366,7 +366,7 @@ class MeetingViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return Meeting.objects.filter(
             chama_id=chama_id,
             chama__is_deleted=False
-        )
+        ).select_related('organizer__user', 'chama')
 
     def perform_create(self, serializer):
         chama_id = self.kwargs.get('chama_pk')

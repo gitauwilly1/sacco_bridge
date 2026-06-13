@@ -41,6 +41,7 @@ class UserActivityFeedView(APIView):
         cutoff = timezone.now() - timezone.timedelta(days=days)
         activities = activities.filter(created_at__gte=cutoff)
 
+        activities = activities.select_related('user', 'chama', 'sacco')
         activities = activities.order_by('-created_at')
 
         paginator = SmallPagination()
@@ -92,6 +93,7 @@ class ChamaActivityFeedView(APIView):
         cutoff = timezone.now() - timezone.timedelta(days=days)
         activities = activities.filter(created_at__gte=cutoff)
 
+        activities = activities.select_related('user', 'chama', 'sacco')
         activities = activities.order_by('-created_at')
 
         paginator = SmallPagination()

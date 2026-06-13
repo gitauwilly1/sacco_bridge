@@ -48,7 +48,7 @@ class SACCOViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
             status='ACTIVE',
             trading_halted=False,
             is_deleted=False
-        )
+        ).prefetch_related('share_classes')
 
     @action(detail=True, methods=['get'])
     def share_classes(self, request, pk=None):
@@ -177,7 +177,7 @@ class SACCOHoldingViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
         return SACCOMemberHolding.objects.filter(
             user=self.request.user,
             is_deleted=False
-        )
+        ).select_related('sacco', 'share_class')
 
 
 @extend_schema_view(
@@ -197,7 +197,7 @@ class LiquidityRequestViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return LiquidityRequest.objects.filter(
             seller=self.request.user,
             is_deleted=False
-        )
+        ).select_related('sacco', 'share_class', 'holding')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -273,7 +273,7 @@ class OpportunityViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
             sacco_id__in=user_saccos,
             sacco__trading_halted=False,
             is_deleted=False,
-        ).exclude(seller=self.request.user)
+        ).exclude(seller=self.request.user).select_related('sacco', 'share_class', 'seller')
 
     @action(detail=True, methods=['post'])
     def express_interest(self, request, pk=None):
@@ -351,7 +351,9 @@ class ConnectionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return Connection.objects.filter(
             django_models.Q(seller=user) | django_models.Q(buyer=user),
             is_deleted=False
-        )
+        ).select_related(
+            'buyer', 'seller', 'liquidity_request__sacco'
+        ).prefetch_related('offers')
 
     @action(detail=True, methods=['post'])
     def make_offer(self, request, pk=None):

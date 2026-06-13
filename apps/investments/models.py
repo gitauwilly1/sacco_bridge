@@ -496,6 +496,7 @@ class LiquidityRequest(BaseModel):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['seller', 'status']),
+            models.Index(fields=['sacco', 'status', 'urgency']),
             models.Index(fields=['sacco', 'status']),
             models.Index(fields=['status']),
             models.Index(fields=['urgency']),
@@ -641,6 +642,7 @@ class Connection(BaseModel):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['seller', 'status']),
+            models.Index(fields=['liquidity_request', 'status']),
             models.Index(fields=['buyer', 'status']),
             models.Index(fields=['status']),
         ]

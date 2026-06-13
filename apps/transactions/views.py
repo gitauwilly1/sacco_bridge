@@ -43,7 +43,7 @@ class SettlementViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return SettlementIntent.objects.filter(
             models.Q(buyer=user) | models.Q(seller=user),
             is_deleted=False
-        )
+        ).select_related('buyer', 'seller').prefetch_related('events')
 
     @action(detail=True, methods=['get'])
     def events(self, request, pk=None):
@@ -95,7 +95,7 @@ class DisputeViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return SettlementIntent.objects.filter(
             state=SettlementState.DISPUTED_MANUAL,
             is_deleted=False
-        )
+        ).select_related('buyer', 'seller')
 
     @action(detail=True, methods=['post'])
     def resolve(self, request, pk=None):

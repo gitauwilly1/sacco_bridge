@@ -565,6 +565,7 @@ class Contribution(BaseModel):
         indexes = [
             models.Index(fields=['chama', 'period_start']),
             models.Index(fields=['member', 'status']),
+            models.Index(fields=['chama', 'period_start', 'status']),
             models.Index(fields=['status']),
             models.Index(fields=['payment_reference']),
         ]
@@ -717,6 +718,8 @@ class Loan(BaseModel):
         indexes = [
             models.Index(fields=['chama', 'status']),
             models.Index(fields=['borrower', 'status']),
+            models.Index(fields=['chama', 'borrower', 'status']),
+            models.Index(fields=['due_date']),
             models.Index(fields=['status']),
         ]
 

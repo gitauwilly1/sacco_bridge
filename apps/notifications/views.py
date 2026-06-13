@@ -33,7 +33,7 @@ class NotificationViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return Notification.objects.filter(
             user=self.request.user,
             is_deleted=False
-        )
+        ).select_related('template')
 
     @action(detail=False, methods=['post'])
     def mark_all_read(self, request):
