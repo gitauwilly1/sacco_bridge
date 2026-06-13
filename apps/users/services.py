@@ -217,6 +217,36 @@ class AuthenticationService:
             logger.error(f"Failed to send password reset email: {str(e)}")
             # Don't re-raise - password reset should not expose email delivery failures
 
+    @staticmethod
+    def send_verification_sms_for_invite(phone_number, chama_name, inviter_name, invite_code):
+        message = (
+            f"{inviter_name} has invited you to join {chama_name} on Sacco Bridge. "
+            f"Download the app and use invite code: {invite_code}"
+        )
+
+        # Format phone number
+        phone = phone_number
+        if phone.startswith('0'):
+            phone = '+254' + phone[1:]
+        elif not phone.startswith('+'):
+            phone = '+254' + phone
+
+        try:
+            import africastalking
+            africastalking.initialize(
+                settings.AFRICASTALKING_USERNAME,
+                settings.AFRICASTALKING_API_KEY
+            )
+            sms = africastalking.SMS
+            response = sms.send(message, [phone])
+            logger.info(f"Invite SMS sent to {phone}: {response}")
+        except Exception as e:
+            logger.warning(f"Failed to send invite SMS: {e}")
+            if settings.DEBUG:
+                print(f"\n{'='*60}")
+                print(f"INVITE SMS to {phone_number}: {message}")
+                print(f"{'='*60}\n")
+
 class TwoFactorService:
 
     @staticmethod

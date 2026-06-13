@@ -636,6 +636,262 @@ class BulkContributionView(APIView):
             ) % {'success': success_count, 'failed': failure_count},
         }, status=status.HTTP_200_OK if failure_count == 0 else status.HTTP_207_MULTI_STATUS)
     
+
+class BulkInviteMembersView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Chamas'],
+        summary='Bulk invite members',
+        description='Invite multiple members via JSON array or CSV file upload.',
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'members': {
+                        'type': 'string',
+                        'description': 'JSON array of {name, phone_number, email} objects'
+                    },
+                    'csv_file': {
+                        'type': 'string',
+                        'format': 'binary',
+                        'description': 'CSV file with columns: name, phone_number, email'
+                    },
+                }
+            }
+        }
+    )
+    def post(self, request, chama_pk):
+        from apps.chamas.models import Chama, ChamaMember, MemberRole
+        from apps.notifications.services import NotificationService
+        from apps.notifications.models import NotificationCategory, NotificationPriority
+
+        # Validate chama exists and user is admin
+        try:
+            chama = Chama.objects.get(id=chama_pk, is_deleted=False)
+        except Chama.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('Chama not found.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Check authorization
+        try:
+            membership = chama.memberships.get(user=request.user, is_active=True)
+            is_admin = membership.role in [
+                MemberRole.CHAIRPERSON,
+                MemberRole.TREASURER,
+                MemberRole.SECRETARY,
+            ]
+        except ChamaMember.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'not_member',
+                    'message': _('You are not a member of this chama.')
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if not is_admin:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'permission_denied',
+                    'message': _('Only chama officials can invite members.')
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Parse invitees from request
+        invitees = []
+
+        # Check for CSV file upload
+        csv_file = request.FILES.get('csv_file')
+        if csv_file:
+            invitees = self._parse_csv(csv_file)
+        else:
+            # Check for JSON array
+            members_data = request.data.get('members')
+            if isinstance(members_data, str):
+                import json
+                try:
+                    members_data = json.loads(members_data)
+                except json.JSONDecodeError:
+                    return Response({
+                        'success': False,
+                        'error': {
+                            'code': 'invalid_json',
+                            'message': _('Invalid JSON format for members data.')
+                        }
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            if isinstance(members_data, list):
+                invitees = members_data
+
+        if not invitees:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'no_data',
+                    'message': _('No members provided. Send a JSON array or CSV file.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(invitees) > 200:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'limit_exceeded',
+                    'message': _('Maximum 200 invites per batch.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check capacity
+        current_count = chama.memberships.filter(is_active=True).count()
+        available_slots = chama.max_members - current_count
+        if len(invitees) > available_slots:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'capacity_exceeded',
+                    'message': _('Only %(slots)d slots available. Cannot invite %(count)d members.') % {
+                        'slots': available_slots,
+                        'count': len(invitees)
+                    }
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Process each invitee
+        results = []
+        success_count = 0
+        failure_count = 0
+
+        for idx, invitee in enumerate(invitees):
+            result = {
+                'index': idx,
+                'name': invitee.get('name', invitee.get('Name', 'Unknown')),
+                'status': 'pending',
+            }
+
+            try:
+                phone = invitee.get('phone_number', invitee.get('Phone', invitee.get('phone', '')))
+                email = invitee.get('email', invitee.get('Email', ''))
+                name = invitee.get('name', invitee.get('Name', ''))
+
+                if not phone:
+                    result['status'] = 'failed'
+                    result['error'] = _('Phone number is required.')
+                    failure_count += 1
+                    results.append(result)
+                    continue
+
+                # Format phone number
+                import re
+                phone = re.sub(r'\s+', '', str(phone))
+                if phone.startswith('+254'):
+                    phone = '0' + phone[4:]
+                elif not phone.startswith('0'):
+                    if len(phone) == 9:
+                        phone = '0' + phone
+
+                # Check if already a member
+                from apps.users.models import User
+                existing_user = User.objects.filter(phone_number=phone).first()
+
+                if existing_user:
+                    # Check if already in this chama
+                    if chama.memberships.filter(user=existing_user, is_active=True).exists():
+                        result['status'] = 'skipped'
+                        result['error'] = _('Already a member.')
+                        failure_count += 1
+                        results.append(result)
+                        continue
+
+                    # Add existing user to chama
+                    ChamaMember.objects.create(
+                        chama=chama,
+                        user=existing_user,
+                        role=MemberRole.MEMBER,
+                    )
+
+                    # Notify user
+                    try:
+                        NotificationService.create_notification(
+                            user=existing_user,
+                            category=NotificationCategory.CHAMA_MEMBER,
+                            title=f'Added to {chama.name}',
+                            body=f'You have been added to {chama.name} by {request.user.get_full_name()}.',
+                            priority=NotificationPriority.HIGH,
+                            action_url=f'/chamas/{chama.id}/',
+                        )
+                    except Exception:
+                        pass
+
+                    result['status'] = 'success'
+                    result['user_id'] = str(existing_user.id)
+                    result['message'] = _('Existing user added.')
+                    success_count += 1
+
+                else:
+                    # New user - send SMS invitation
+                    result['status'] = 'success'
+                    result['message'] = _('Invitation will be sent via SMS.')
+                    result['phone'] = phone
+                    success_count += 1
+
+                    # Queue SMS invitation
+                    try:
+                        AuthenticationService.send_verification_sms_for_invite(
+                            phone_number=phone,
+                            chama_name=chama.name,
+                            inviter_name=request.user.get_full_name(),
+                            invite_code=chama.invite_code,
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send invite SMS to {phone}: {e}")
+
+            except Exception as e:
+                logger.error(f"Bulk invite error at index {idx}: {e}")
+                result['status'] = 'failed'
+                result['error'] = str(e)
+                failure_count += 1
+
+            results.append(result)
+
+        return Response({
+            'success': True,
+            'data': {
+                'total': len(invitees),
+                'success_count': success_count,
+                'failure_count': failure_count,
+                'results': results,
+            },
+            'message': _(
+                '%(success)d invited successfully, %(failed)d failed.'
+            ) % {'success': success_count, 'failed': failure_count},
+        }, status=status.HTTP_200_OK if failure_count == 0 else status.HTTP_207_MULTI_STATUS)
+
+    def _parse_csv(self, csv_file):
+        import csv
+        import io
+
+        invitees = []
+        try:
+            decoded = csv_file.read().decode('utf-8-sig')
+            reader = csv.DictReader(io.StringIO(decoded))
+
+            for row in reader:
+                invitees.append({
+                    'name': row.get('name', row.get('Name', '')),
+                    'phone_number': row.get('phone_number', row.get('Phone', row.get('phone', ''))),
+                    'email': row.get('email', row.get('Email', '')),
+                })
+        except Exception as e:
+            logger.error(f"CSV parsing error: {e}")
+            raise
+
+        return invitees
+
 class AdminChamaManagementView(APIView):
 
     permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]

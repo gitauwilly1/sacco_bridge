@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 from apps.chamas.views import (
-    AdminChamaManagementView, ChamaViewSet, ChamaMemberViewSet, ContributionViewSet,
+    AdminChamaManagementView, BulkInviteMembersView, ChamaViewSet, ChamaMemberViewSet, ContributionViewSet,
     LoanViewSet, MeetingViewSet,BulkContributionView,
 )
 
@@ -134,5 +134,11 @@ urlpatterns = [
         }),
         name='chama-meeting-attendance-detail'
     ),
+    path(
+        '<uuid:chama_pk>/members/bulk-invite/',
+        BulkInviteMembersView.as_view(),
+        name='chama-members-bulk-invite'
+    ),
+    
     path('admin/manage/', AdminChamaManagementView.as_view(), name='admin-chama-manage'),
 ]
