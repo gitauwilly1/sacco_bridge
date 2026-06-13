@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 from apps.chamas.views import (
     AdminChamaManagementView, BulkInviteMembersView, ChamaViewSet, ChamaMemberViewSet, ContributionViewSet,
-    LoanViewSet, MeetingViewSet,BulkContributionView,
+    LoanViewSet, MeetingViewSet,BulkContributionView, PollViewSet,
 )
 
 router = SimpleRouter()
@@ -138,6 +138,26 @@ urlpatterns = [
         '<uuid:chama_pk>/members/bulk-invite/',
         BulkInviteMembersView.as_view(),
         name='chama-members-bulk-invite'
+    ),
+    path(
+        '<uuid:chama_pk>/polls/',
+        PollViewSet.as_view({'get': 'list', 'post': 'create'}),
+        name='chama-polls'
+    ),
+    path(
+        '<uuid:chama_pk>/polls/<uuid:pk>/',
+        PollViewSet.as_view({'get': 'retrieve'}),
+        name='chama-poll-detail'
+    ),
+    path(
+        '<uuid:chama_pk>/polls/<uuid:pk>/vote/',
+        PollViewSet.as_view({'post': 'vote'}),
+        name='chama-poll-vote'
+    ),
+    path(
+        '<uuid:chama_pk>/polls/<uuid:pk>/close/',
+        PollViewSet.as_view({'post': 'close'}),
+        name='chama-poll-close'
     ),
     
     path('admin/manage/', AdminChamaManagementView.as_view(), name='admin-chama-manage'),

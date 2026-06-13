@@ -7,6 +7,7 @@ from apps.core.serializers import BaseSerializer, DynamicFieldsMixin
 from apps.chamas.models import (
     Chama, ChamaMember, Contribution, Loan, LoanRepayment,
     Meeting, MeetingAttendance, Payout, PayoutRecipient,
+    Poll, PollOption, Vote
 )
 
 
@@ -324,3 +325,78 @@ class PayoutRecipientSerializer(BaseSerializer):
 
     def get_member_name(self, obj):
         return obj.member.user.get_full_name()
+
+class PollOptionSerializer(serializers.ModelSerializer):
+    vote_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PollOption
+        fields = ['id', 'option_text', 'order', 'vote_count']
+
+    def get_vote_count(self, obj):
+        return obj.votes.count()
+
+
+class PollSerializer(BaseSerializer):
+    options = PollOptionSerializer(many=True)
+    total_votes = serializers.SerializerMethodField()
+    has_voted = serializers.SerializerMethodField()
+    results = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Poll
+        fields = [
+            'id', 'chama', 'title', 'description',
+            'voting_method', 'is_anonymous', 'is_active',
+            'closes_at', 'closed_at', 'created_at',
+            'options', 'total_votes', 'has_voted', 'results',
+        ]
+        read_only_fields = ['id', 'is_active', 'closed_at', 'created_at']
+
+    def get_total_votes(self, obj):
+        return sum(opt.votes.count() for opt in obj.options.all())
+
+    def get_has_voted(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            from apps.chamas.models import ChamaMember
+            member = ChamaMember.objects.filter(
+                chama=obj.chama, user=request.user
+            ).first()
+            if member:
+                return obj.all_votes.filter(voter=member).exists()
+        return False
+
+    def get_results(self, obj):
+        if obj.is_active:
+            return None
+        return obj.get_results()
+
+
+class PollCreateSerializer(serializers.ModelSerializer):
+    options = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        min_length=2,
+        write_only=True,
+        help_text=_("List of option texts.")
+    )
+
+    class Meta:
+        model = Poll
+        fields = [
+            'title', 'description', 'voting_method',
+            'is_anonymous', 'closes_at', 'options',
+        ]
+
+    def create(self, validated_data):
+        options_data = validated_data.pop('options')
+        poll = Poll.objects.create(**validated_data)
+
+        for i, option_text in enumerate(options_data):
+            PollOption.objects.create(poll=poll, option_text=option_text, order=i)
+
+        return poll
+
+
+class VoteSerializer(serializers.Serializer):
+    option_id = serializers.UUIDField(required=True)

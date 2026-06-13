@@ -1048,3 +1048,124 @@ class PayoutRecipient(BaseModel):
 
     def __str__(self):
         return f"{self.member.user.get_full_name()} - KSh {self.amount}"
+
+
+class Poll(BaseModel):
+
+    chama = models.ForeignKey(
+        Chama, on_delete=models.CASCADE, related_name='polls'
+    )
+
+    title = models.CharField(max_length=255)
+
+    description = models.TextField(blank=True, default='')
+
+    created_by = models.ForeignKey(
+        ChamaMember, on_delete=models.CASCADE, related_name='created_polls'
+    )
+
+    voting_method = models.CharField(
+        max_length=20,
+        choices=[
+            ('MAJORITY', 'Simple Majority'),
+            ('TWO_THIRDS', 'Two-Thirds Majority'),
+            ('UNANIMOUS', 'Unanimous'),
+        ],
+        default='MAJORITY',
+    )
+
+    is_anonymous = models.BooleanField(
+        default=False,
+        help_text=_("Whether votes are anonymous.")
+    )
+
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    closes_at = models.DateTimeField(null=True, blank=True)
+
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = _('Poll')
+        verbose_name_plural = _('Polls')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.chama.name} - {self.title}"
+
+    def close(self):
+        self.is_active = False
+        self.closed_at = timezone.now()
+        self.save(update_fields=['is_active', 'closed_at'])
+
+    def get_results(self):
+        options = self.options.all()
+        total_votes = sum(opt.votes.count() for opt in options)
+
+        results = []
+        for opt in options:
+            vote_count = opt.votes.count()
+            percentage = (vote_count / total_votes * 100) if total_votes > 0 else 0
+            results.append({
+                'option_id': str(opt.id),
+                'option_text': opt.option_text,
+                'votes': vote_count,
+                'percentage': round(percentage, 1),
+            })
+
+        return {
+            'total_votes': total_votes,
+            'options': results,
+            'passed': self._check_passed(results),
+        }
+
+    def _check_passed(self, results):
+        if not results:
+            return False
+
+        total = sum(r['votes'] for r in results)
+        if total == 0:
+            return False
+
+        winning = max(results, key=lambda r: r['votes'])
+        winning_pct = winning['percentage']
+
+        if self.voting_method == 'MAJORITY':
+            return winning_pct > 50
+        elif self.voting_method == 'TWO_THIRDS':
+            return winning_pct >= 66.7
+        elif self.voting_method == 'UNANIMOUS':
+            return winning_pct == 100
+
+        return False
+
+
+class PollOption(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    poll = models.ForeignKey(Poll, on_delete=models.CASCADE, related_name='options')
+    option_text = models.CharField(max_length=255)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return f"{self.poll.title} - {self.option_text}"
+
+
+class Vote(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    poll = models.ForeignKey(Poll, on_delete=models.CASCADE, related_name='all_votes')
+    option = models.ForeignKey(PollOption, on_delete=models.CASCADE, related_name='votes')
+    voter = models.ForeignKey(
+        ChamaMember, on_delete=models.CASCADE, related_name='votes_cast'
+    )
+    voted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['poll', 'voter']
+
+    def __str__(self):
+        return f"{self.voter.user.get_full_name()} voted on {self.poll.title}"

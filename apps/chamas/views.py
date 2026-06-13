@@ -18,7 +18,7 @@ from apps.core.mixins import SoftDeleteMixin
 from apps.chamas.models import (
     Chama, ChamaMember, Contribution, Loan, LoanRepayment,
     Meeting, MeetingAttendance, MemberRole, LoanStatus,
-    PaymentMethod, ContributionStatus,
+    PaymentMethod, ContributionStatus,Poll, PollOption, Vote,
 )
 from apps.chamas.serializers import (
     ChamaSerializer, ChamaCreateSerializer, ChamaMemberSerializer,
@@ -26,6 +26,7 @@ from apps.chamas.serializers import (
     LoanSerializer, LoanCreateSerializer, LoanRepaymentSerializer,
     MeetingSerializer, MeetingAttendanceSerializer,
     PayoutSerializer, PayoutRecipientSerializer,
+    PollSerializer, PollOptionSerializer, VoteSerializer
 )
 from apps.users.permissions import IsChamaAdmin, IsPlatformStaff
 
@@ -984,4 +985,110 @@ class AdminChamaManagementView(APIView):
                 'message': message,
             },
             'message': message,
+        })
+
+class PollViewSet(viewsets.ModelViewSet):
+
+    serializer_class = PollSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = SmallPagination
+
+    def get_queryset(self):
+        chama_id = self.kwargs.get('chama_pk')
+        return Poll.objects.filter(
+            chama_id=chama_id,
+            chama__is_deleted=False,
+        )
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return PollCreateSerializer
+        return PollSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def perform_create(self, serializer):
+        chama_id = self.kwargs.get('chama_pk')
+        chama = Chama.objects.get(id=chama_id)
+
+        member = ChamaMember.objects.get(chama=chama, user=self.request.user)
+
+        if member.role not in [MemberRole.CHAIRPERSON, MemberRole.TREASURER, MemberRole.SECRETARY]:
+            raise PermissionDeniedError(_('Only chama officials can create polls.'))
+
+        serializer.save(chama=chama, created_by=member)
+
+    @action(detail=True, methods=['post'])
+    def vote(self, request, chama_pk=None, pk=None):
+        poll = self.get_object()
+
+        if not poll.is_active:
+            return Response({
+                'success': False,
+                'error': {'code': 'poll_closed', 'message': _('This poll is closed.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if poll.closes_at and poll.closes_at < timezone.now():
+            poll.close()
+            return Response({
+                'success': False,
+                'error': {'code': 'poll_closed', 'message': _('This poll has closed.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = VoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        chama_id = self.kwargs.get('chama_pk')
+        chama = Chama.objects.get(id=chama_id)
+        member = ChamaMember.objects.get(chama=chama, user=request.user)
+
+        # Check if already voted
+        if Vote.objects.filter(poll=poll, voter=member).exists():
+            return Response({
+                'success': False,
+                'error': {'code': 'already_voted', 'message': _('You have already voted.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            option = poll.options.get(id=serializer.validated_data['option_id'])
+        except PollOption.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_option', 'message': _('Invalid option.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        Vote.objects.create(poll=poll, option=option, voter=member)
+
+        return Response({
+            'success': True,
+            'data': PollSerializer(poll, context={'request': request}).data,
+            'message': _('Vote recorded.'),
+        })
+
+    @action(detail=True, methods=['post'])
+    def close(self, request, chama_pk=None, pk=None):
+        poll = self.get_object()
+
+        chama_id = self.kwargs.get('chama_pk')
+        chama = Chama.objects.get(id=chama_id)
+        member = ChamaMember.objects.get(chama=chama, user=request.user)
+
+        if member.role not in [MemberRole.CHAIRPERSON, MemberRole.TREASURER, MemberRole.SECRETARY]:
+            raise PermissionDeniedError()
+
+        if not poll.is_active:
+            return Response({
+                'success': False,
+                'error': {'code': 'already_closed', 'message': _('Poll is already closed.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        poll.close()
+
+        return Response({
+            'success': True,
+            'data': PollSerializer(poll, context={'request': request}).data,
+            'message': _('Poll closed.'),
         })
