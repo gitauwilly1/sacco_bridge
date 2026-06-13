@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.core.exceptions import AuthenticationFailedError, VerificationError
 from apps.users.models import LoginHistory
@@ -23,6 +23,7 @@ from apps.users.serializers import (
 )
 from apps.users.services import AuthenticationService, TwoFactorService, GoogleAuthService
 from apps.users.permissions import IsPlatformStaff
+from django.db import models as django_models
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -1204,4 +1205,70 @@ class AdminUserManagementView(APIView):
                 'message': message,
             },
             'message': message,
+        })
+
+class AuditLogView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
+
+    @extend_schema(
+        tags=['Admin'],
+        summary='View audit logs',
+        description='Get audit trail for a specific object.',
+        parameters=[
+            OpenApiParameter(name='model', description='Model name', required=True, type=str),
+            OpenApiParameter(name='object_id', description='Object UUID', required=True, type=str),
+        ]
+    )
+    def get(self, request):
+        from auditlog.models import LogEntry
+        from django.contrib.contenttypes.models import ContentType
+
+        model_name = request.query_params.get('model')
+        object_id = request.query_params.get('object_id')
+
+        if not model_name or not object_id:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_params', 'message': 'model and object_id are required.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Find the content type
+            content_type = ContentType.objects.get(
+                models.Q(app_label='chamas', model=model_name.lower()) |
+                models.Q(app_label='investments', model=model_name.lower()) |
+                models.Q(app_label='transactions', model=model_name.lower()) |
+                models.Q(app_label='users', model=model_name.lower())
+            )
+        except ContentType.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_model', 'message': f'Model {model_name} not found.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        logs = LogEntry.objects.filter(
+            content_type=content_type,
+            object_pk=object_id,
+        ).select_related('actor').order_by('-timestamp')[:50]
+
+        data = []
+        for log in logs:
+            data.append({
+                'id': log.id,
+                'action': log.get_action_display(),
+                'actor': log.actor.get_full_name() if log.actor else 'System',
+                'changes': log.changes,
+                'timestamp': log.timestamp.isoformat(),
+                'remote_addr': log.remote_addr,
+            })
+
+        return Response({
+            'success': True,
+            'data': {
+                'model': model_name,
+                'object_id': object_id,
+                'entries': data,
+                'total': logs.count(),
+            },
         })

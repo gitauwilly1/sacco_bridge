@@ -6,3 +6,6 @@ class CoreConfig(AppConfig):
     name = 'apps.core'
     verbose_name = 'Core'
     label = 'core'
+
+    def ready(self):
+        import apps.core.audit
