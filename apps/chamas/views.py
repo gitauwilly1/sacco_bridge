@@ -365,6 +365,113 @@ class LoanViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             'message': _('Repayment recorded.'),
         })
 
+    @action(detail=True, methods=['get'])
+    def early_repayment_calculation(self, request, chama_pk=None, pk=None):
+        loan = self.get_object()
+
+        try:
+            calculation = loan.calculate_early_repayment()
+        except ValueError as e:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_state', 'message': str(e)}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'success': True,
+            'data': calculation,
+        })
+
+    @action(detail=True, methods=['post'])
+    def early_repay(self, request, chama_pk=None, pk=None):
+        loan = self.get_object()
+
+        try:
+            calculation = loan.calculate_early_repayment()
+        except ValueError as e:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_state', 'message': str(e)}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        from decimal import Decimal
+        amount = request.data.get('amount')
+        if not amount:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_amount', 'message': _('Payment amount required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        amount = Decimal(str(amount))
+        early_payoff = Decimal(calculation['early_payoff_amount'])
+
+        if amount < early_payoff:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'insufficient_amount',
+                    'message': _('Early payoff requires KSh %(amount)s.') % {'amount': early_payoff}
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            LoanRepayment.objects.create(
+                loan=loan,
+                amount=amount,
+                payment_method=request.data.get('payment_method', PaymentMethod.MPESA),
+                payment_reference=request.data.get('payment_reference', ''),
+            )
+            loan.early_repay()
+
+        return Response({
+            'success': True,
+            'data': {
+                'message': _('Loan fully repaid.'),
+                'savings': calculation['savings'],
+            },
+            'message': _('Early repayment successful.'),
+        })
+
+    @action(detail=True, methods=['post'])
+    def restructure(self, request, chama_pk=None, pk=None):
+        loan = self.get_object()
+
+        if not IsChamaAdmin().has_permission(request, self):
+            raise PermissionDeniedError()
+
+        new_duration = request.data.get('new_duration_months')
+        reason = request.data.get('reason', '')
+
+        if not new_duration or int(new_duration) <= loan.duration_months:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_duration',
+                    'message': _('New duration must be longer than current duration.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if loan.is_restructured:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'already_restructured',
+                    'message': _('Loan has already been restructured.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        chama_id = self.kwargs.get('chama_pk')
+        chama = Chama.objects.get(id=chama_id)
+        approver = ChamaMember.objects.get(chama=chama, user=request.user)
+
+        loan.restructure(int(new_duration), reason, approver)
+
+        return Response({
+            'success': True,
+            'data': LoanSerializer(loan).data,
+            'message': _('Loan restructured.'),
+        })
+
 
 @extend_schema_view(
     list=extend_schema(tags=['Meetings'], summary='List meetings'),

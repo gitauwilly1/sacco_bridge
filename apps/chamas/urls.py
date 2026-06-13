@@ -159,6 +159,21 @@ urlpatterns = [
         PollViewSet.as_view({'post': 'close'}),
         name='chama-poll-close'
     ),
+    path(
+        '<uuid:chama_pk>/loans/<uuid:pk>/early-repayment-calculation/',
+        LoanViewSet.as_view({'get': 'early_repayment_calculation'}),
+        name='chama-loan-early-repayment-calculation'
+    ),
+    path(
+        '<uuid:chama_pk>/loans/<uuid:pk>/early-repay/',
+        LoanViewSet.as_view({'post': 'early_repay'}),
+        name='chama-loan-early-repay'
+    ),
+    path(
+        '<uuid:chama_pk>/loans/<uuid:pk>/restructure/',
+        LoanViewSet.as_view({'post': 'restructure'}),
+        name='chama-loan-restructure'
+    ),
     
     path('admin/manage/', AdminChamaManagementView.as_view(), name='admin-chama-manage'),
 ]

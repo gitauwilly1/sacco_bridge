@@ -728,6 +728,27 @@ class Loan(BaseModel):
         help_text=_("Members who guaranteed this loan.")
     )
 
+    is_restructured = models.BooleanField(
+        default=False,
+        help_text=_("Whether this loan has been restructured.")
+    )
+    original_duration_months = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text=_("Original duration before restructuring.")
+    )
+    original_monthly_installment = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True,
+        help_text=_("Original installment before restructuring.")
+    )
+    restructuring_reason = models.TextField(
+        blank=True, default='',
+        help_text=_("Reason for loan restructuring.")
+    )
+    early_repayment_discount = models.DecimalField(
+        max_digits=5, decimal_places=2, default=2.00,
+        help_text=_("Discount percentage for early full repayment.")
+    )
+
     class Meta:
         verbose_name = _('Loan')
         verbose_name_plural = _('Loans')
@@ -798,6 +819,59 @@ class Loan(BaseModel):
         if self.chama.outstanding_loans < Decimal('0.00'):
             self.chama.outstanding_loans = Decimal('0.00')
         self.chama.save(update_fields=['available_balance', 'outstanding_loans'])
+        self.save()
+
+    def calculate_early_repayment(self):
+        if self.status not in [LoanStatus.DISBURSED, LoanStatus.PARTIALLY_REPAID]:
+            raise ValueError(_('Loan is not active.'))
+
+        # Remaining principal only (discount on interest)
+        total_paid = self.total_repayable - self.outstanding_balance
+        remaining_principal = max(Decimal('0'), self.principal - (total_paid - self.total_interest))
+
+        # Apply early repayment discount on remaining interest
+        remaining_interest = max(Decimal('0'), self.outstanding_balance - remaining_principal)
+        discount_amount = remaining_interest * (self.early_repayment_discount / Decimal('100'))
+        discounted_interest = remaining_interest - discount_amount
+
+        early_payoff = remaining_principal + discounted_interest
+
+        return {
+            'outstanding_balance': str(self.outstanding_balance),
+            'remaining_principal': str(remaining_principal),
+            'remaining_interest': str(remaining_interest),
+            'discount_rate': str(self.early_repayment_discount),
+            'discount_amount': str(discount_amount.quantize(Decimal('0.01'))),
+            'early_payoff_amount': str(early_payoff.quantize(Decimal('0.01'))),
+            'savings': str((self.outstanding_balance - early_payoff).quantize(Decimal('0.01'))),
+        }
+
+    def early_repay(self):
+        self.outstanding_balance = Decimal('0.00')
+        self.status = LoanStatus.FULLY_REPAID
+        self.save()
+
+        self.borrower.outstanding_loans -= self.outstanding_balance
+        if self.borrower.outstanding_loans < Decimal('0'):
+            self.borrower.outstanding_loans = Decimal('0')
+        self.borrower.save()
+
+    def restructure(self, new_duration_months, reason, approved_by):
+        if not self.original_duration_months:
+            self.original_duration_months = self.duration_months
+        if not self.original_monthly_installment:
+            self.original_monthly_installment = self.monthly_installment
+
+        self.is_restructured = True
+        self.duration_months = new_duration_months
+        self.restructuring_reason = reason
+
+        # Recalculate monthly installment
+        if self.outstanding_balance > Decimal('0'):
+            self.monthly_installment = (
+                self.outstanding_balance / Decimal(str(new_duration_months))
+            ).quantize(Decimal('0.01'))
+
         self.save()
 
 
