@@ -94,6 +94,7 @@ MIDDLEWARE = [
     'apps.core.middleware.RequestLoggingMiddleware',
     'apps.core.middleware.APIVersionMiddleware',
     'apps.core.middleware.SecurityHeadersMiddleware',
+    'apps.core.middleware.IdempotencyMiddleware',
 ]
 ROOT_URLCONF = 'sacco_bridge.urls'
 

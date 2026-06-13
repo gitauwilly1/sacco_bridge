@@ -144,3 +144,43 @@ class WebSocketAuthMiddleware:
             scope['user'] = AnonymousUser()
 
         return await self.inner(scope, receive, send)
+
+
+class IdempotencyMiddleware:
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # Only check mutation methods
+        if request.method in ('POST', 'PATCH', 'PUT', 'DELETE'):
+            idempotency_key = request.headers.get('X-Idempotency-Key')
+
+            if idempotency_key:
+                cache_key = f'idempotency:{idempotency_key}'
+                from django.core.cache import cache
+
+                # Check if we've seen this key before
+                cached_response = cache.get(cache_key)
+                if cached_response is not None:
+                    from django.http import JsonResponse
+                    return JsonResponse(
+                        cached_response,
+                        status=cached_response.get('status', 200),
+                    )
+
+                response = self.get_response(request)
+
+                # Cache successful responses for 24 hours
+                if 200 <= response.status_code < 500:
+                    try:
+                        import json
+                        response_data = json.loads(response.content)
+                        response_data['_idempotent'] = True
+                        cache.set(cache_key, response_data, 86400)  # 24 hours
+                    except Exception:
+                        pass
+
+                return response
+
+        return self.get_response(request)
