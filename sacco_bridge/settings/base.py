@@ -73,6 +73,7 @@ LOCAL_APPS = [
     'apps.legal',
     'apps.reports',
     'apps.activity',
+    'apps.webhooks',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
