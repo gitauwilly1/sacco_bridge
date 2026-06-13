@@ -178,6 +178,80 @@ class SACCOHoldingViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
             user=self.request.user,
             is_deleted=False
         ).select_related('sacco', 'share_class')
+    
+    @action(detail=False, methods=['get'])
+    def concentration_check(self, request):
+        holdings = self.get_queryset().select_related('sacco')
+
+        if not holdings.exists():
+            return Response({
+                'success': True,
+                'data': {
+                    'has_warnings': False,
+                    'total_value': '0',
+                    'diversification_score': 100,
+                    'holdings': [],
+                },
+            })
+
+        # Calculate total value
+        total_value = sum(
+            h.total_shares * h.share_class.nominal_value
+            for h in holdings
+        )
+
+        warnings = []
+        holdings_data = []
+
+        for h in holdings:
+            value = h.total_shares * h.share_class.nominal_value
+            percentage = (value / total_value * 100) if total_value > 0 else 0
+
+            holding_info = {
+                'sacco_id': str(h.sacco.id),
+                'sacco_name': h.sacco.name,
+                'sasra_tier': h.sacco.get_sasra_tier_display(),
+                'shares': str(h.total_shares),
+                'estimated_value': str(value),
+                'percentage': round(percentage, 1),
+            }
+
+            # Warning thresholds
+            if percentage > 50:
+                holding_info['warning'] = 'critical'
+                holding_info['warning_message'] = (
+                    f'Over 50% of your portfolio is in {h.sacco.name}. '
+                    f'This is highly concentrated and risky.'
+                )
+                warnings.append(holding_info['warning_message'])
+            elif percentage > 30:
+                holding_info['warning'] = 'moderate'
+                holding_info['warning_message'] = (
+                    f'Over 30% of your portfolio is in {h.sacco.name}. '
+                    f'Consider diversifying.'
+                )
+                warnings.append(holding_info['warning_message'])
+            else:
+                holding_info['warning'] = None
+
+            holdings_data.append(holding_info)
+
+        # Diversification score (0-100)
+        num_holdings = len(holdings_data)
+        max_pct = max(h['percentage'] for h in holdings_data) if holdings_data else 0
+        diversification_score = max(0, 100 - (max_pct * 1.5) + (num_holdings * 5))
+        diversification_score = min(100, round(diversification_score))
+
+        return Response({
+            'success': True,
+            'data': {
+                'has_warnings': len(warnings) > 0,
+                'warnings': warnings,
+                'total_holdings': num_holdings,
+                'diversification_score': diversification_score,
+                'holdings': holdings_data,
+            },
+        })
 
 
 @extend_schema_view(
