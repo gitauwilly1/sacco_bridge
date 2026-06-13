@@ -23,6 +23,8 @@ class ChatSessionViewSet(SoftDeleteMixin, ModelViewSet):
 
     serializer_class = ChatSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
+    search_fields = ['title']
+    ordering_fields = ['created_at', 'updated_at', 'total_tokens_used']
 
     def get_queryset(self):
         return ChatSession.objects.filter(
@@ -98,6 +100,8 @@ class KnowledgeArticleViewSet(SoftDeleteMixin, ModelViewSet):
 
     serializer_class = KnowledgeArticleSerializer
     permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
+    search_fields = ['title', 'content', 'category', 'tags']
+    ordering_fields = ['title', 'created_at', 'priority', 'view_count']
 
     def get_queryset(self):
         return KnowledgeArticle.objects.filter(is_deleted=False)

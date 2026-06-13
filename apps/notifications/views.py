@@ -26,6 +26,8 @@ class NotificationViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = SmallPagination
+    search_fields = ['title', 'body', 'category']
+    ordering_fields = ['created_at', 'priority', 'category']
 
     def get_queryset(self):
         return Notification.objects.filter(

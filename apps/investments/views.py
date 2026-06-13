@@ -40,6 +40,8 @@ class SACCOViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = SACCOSerializer
     permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
     pagination_class = SmallPagination
+    search_fields = ['name', 'description', 'registration_number']
+    ordering_fields = ['name', 'total_assets', 'dividend_rate', 'total_members']
 
     def get_queryset(self):
         return SACCO.objects.filter(
@@ -68,6 +70,8 @@ class AdminSACCOViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = SACCOSerializer
     permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
     pagination_class = SmallPagination
+    search_fields = ['name', 'description', 'registration_number', 'sasra_tier']
+    ordering_fields = ['name', 'total_assets', 'dividend_rate', 'status', 'created_at']
 
     def get_queryset(self):
         return SACCO.objects.filter(is_deleted=False)
@@ -166,6 +170,8 @@ class SACCOHoldingViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
 
     serializer_class = SACCOMemberHoldingSerializer
     permission_classes = [permissions.IsAuthenticated]
+    search_fields = ['sacco__name']
+    ordering_fields = ['total_shares', 'created_at']
 
     def get_queryset(self):
         return SACCOMemberHolding.objects.filter(
@@ -184,6 +190,8 @@ class LiquidityRequestViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = LiquidityRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
     pagination_class = SmallPagination
+    search_fields = ['sacco__name', 'notes']
+    ordering_fields = ['created_at', 'share_quantity', 'expected_price_per_share', 'urgency', 'status']
 
     def get_queryset(self):
         return LiquidityRequest.objects.filter(
@@ -249,6 +257,8 @@ class OpportunityViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = LiquidityRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
     pagination_class = SmallPagination
+    search_fields = ['sacco__name', 'notes']
+    ordering_fields = ['created_at', 'share_quantity', 'expected_price_per_share', 'urgency']
 
     def get_queryset(self):
         # Get SACCOs where the current user has verified holdings
@@ -333,6 +343,8 @@ class ConnectionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = ConnectionSerializer
     permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
+    search_fields = ['liquidity_request__sacco__name']
+    ordering_fields = ['created_at', 'status', 'total_amount']
 
     def get_queryset(self):
         user = self.request.user

@@ -33,6 +33,9 @@ class SettlementViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = SettlementIntentSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = SmallPagination
+    search_fields = ['buyer_sacco_name', 'seller_sacco_name', 'uuid']
+    ordering_fields = ['created_at', 'amount', 'state', 'finalized_at']
+
 
     def get_queryset(self):
         user = self.request.user
@@ -60,7 +63,6 @@ class SettlementViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def ledger(self, request, pk=None):
-        """Get ledger entry for a finalized settlement."""
         settlement = self.get_object()
 
         try:
@@ -86,6 +88,8 @@ class DisputeViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = SettlementIntentSerializer
     permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
     pagination_class = SmallPagination
+    search_fields = ['buyer_sacco_name', 'seller_sacco_name', 'uuid']
+    ordering_fields = ['created_at', 'amount', 'dispute_opened_at']
 
     def get_queryset(self):
         return SettlementIntent.objects.filter(
@@ -95,7 +99,6 @@ class DisputeViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def resolve(self, request, pk=None):
-        """Resolve a disputed settlement."""
         settlement = self.get_object()
 
         if settlement.state != SettlementState.DISPUTED_MANUAL:
@@ -177,6 +180,8 @@ class LedgerViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = LedgerEntrySerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = SmallPagination
+    search_fields = ['sacco_id']
+    ordering_fields = ['recorded_at', 'total_amount', 'share_quantity']
 
     def get_queryset(self):
         user = self.request.user

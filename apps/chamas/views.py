@@ -44,6 +44,8 @@ class ChamaViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = ChamaSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = SmallPagination
+    search_fields = ['name', 'description', 'chama_type']
+    ordering_fields = ['name', 'created_at', 'total_savings', 'status']
 
     def get_queryset(self):
         return Chama.objects.filter(
@@ -120,6 +122,8 @@ class ChamaMemberViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
     serializer_class = ChamaMemberSerializer
     permission_classes = [permissions.IsAuthenticated]
+    search_fields = ['user__first_name', 'user__last_name', 'user__email', 'role']
+    ordering_fields = ['joined_at', 'total_contributions', 'standing_score', 'role']
 
     def get_queryset(self):
         chama_id = self.kwargs.get('chama_pk')
@@ -145,6 +149,8 @@ class ContributionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = ContributionSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = SmallPagination
+    search_fields = ['payment_reference', 'notes', 'member__user__first_name', 'member__user__last_name']
+    ordering_fields = ['period_start', 'amount', 'status', 'created_at', 'paid_at']
 
     def get_queryset(self):
         chama_id = self.kwargs.get('chama_pk')
@@ -217,6 +223,8 @@ class LoanViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = LoanSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = SmallPagination
+    search_fields = ['purpose', 'borrower__user__first_name', 'borrower__user__last_name']
+    ordering_fields = ['created_at', 'principal', 'outstanding_balance', 'status', 'due_date']
 
     def get_queryset(self):
         chama_id = self.kwargs.get('chama_pk')
@@ -350,6 +358,8 @@ class MeetingViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     serializer_class = MeetingSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = SmallPagination
+    search_fields = ['title', 'description', 'location']
+    ordering_fields = ['date', 'start_time', 'status']
 
     def get_queryset(self):
         chama_id = self.kwargs.get('chama_pk')
