@@ -84,6 +84,12 @@ class LoginView(APIView):
                 },
             })
 
+        if not user.is_active and user.notification_settings.get('account_deactivated'):
+            user.is_active = True
+            user.notification_settings.pop('account_deactivated', None)
+            user.notification_settings.pop('deactivated_at', None)
+            user.save()
+
         token_data = AuthenticationService.get_token_response(user)
         user.last_login = timezone.now()
         user.last_login_ip = self.get_client_ip(request)
@@ -720,6 +726,370 @@ class PhoneNumberUpdateView(APIView):
                 'message': _('Phone number added. Verification code sent via SMS.'),
             },
             'message': _('Verification code sent.'),
+        })
+
+class ActiveSessionsView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Users'],
+        summary='List active sessions',
+        description='View all active login sessions with device info.'
+    )
+    def get(self, request):
+        from django.db.models import Q
+
+        # Get recent successful logins (last 30 days)
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        sessions = LoginHistory.objects.filter(
+            user=request.user,
+            login_successful=True,
+            login_timestamp__gte=thirty_days_ago,
+        ).order_by('-login_timestamp')[:20]
+
+        current_ip = self._get_client_ip(request)
+        current_ua = request.META.get('HTTP_USER_AGENT', '')
+
+        data = []
+        for session in sessions:
+            is_current = (
+                session.ip_address == current_ip and
+                session.user_agent == current_ua
+            )
+            data.append({
+                'session_id': str(session.id),
+                'ip_address': self._mask_ip(session.ip_address),
+                'device_type': session.device_type,
+                'location_city': session.location_city or 'Unknown',
+                'login_timestamp': session.login_timestamp.isoformat(),
+                'is_current': is_current,
+                'user_agent': session.user_agent[:100] if session.user_agent else '',
+            })
+
+        return Response({
+            'success': True,
+            'data': {
+                'sessions': data,
+                'active_count': len(data),
+            },
+        })
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Terminate session',
+        description='Log out from a specific device/session.'
+    )
+    def delete(self, request, session_id):
+        try:
+            session = LoginHistory.objects.get(
+                id=session_id,
+                user=request.user,
+                login_successful=True,
+            )
+        except LoginHistory.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('Session not found.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Don't allow terminating current session
+        current_ip = self._get_client_ip(request)
+        if session.ip_address == current_ip:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'current_session',
+                    'message': _('Cannot terminate current session. Use logout instead.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        session.login_successful = False
+        session.failure_reason = 'Terminated by user'
+        session.save(update_fields=['login_successful', 'failure_reason'])
+
+        return Response({
+            'success': True,
+            'data': {},
+            'message': _('Session terminated.'),
+        })
+
+    def _get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR', '')
+
+    def _mask_ip(self, ip):
+        """Mask last octet of IP for privacy."""
+        if not ip:
+            return 'Unknown'
+        parts = ip.split('.')
+        if len(parts) == 4:
+            parts[-1] = '***'
+            return '.'.join(parts)
+        return ip
+
+
+class AccountDeletionView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Request account deletion',
+        description='Initiate account deletion with 30-day grace period.'
+    )
+    def post(self, request):
+        password = request.data.get('password', '')
+        confirmation = request.data.get('confirmation', '')
+
+        if not request.user.check_password(password):
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_password',
+                    'message': _('Password is incorrect.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if confirmation != 'DELETE':
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_confirmation',
+                    'message': _('Type DELETE to confirm account deletion.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Set deletion schedule
+        deletion_date = timezone.now() + timezone.timedelta(days=30)
+        request.user.is_active = False
+        request.user.notification_settings['account_deletion_scheduled'] = deletion_date.isoformat()
+        request.user.save()
+
+        # Send confirmation email
+        try:
+            from django.core.mail import send_mail
+            send_mail(
+                subject='Account Deletion Request - Sacco Bridge',
+                message=f'Your account deletion has been scheduled for {deletion_date.strftime("%d %B %Y")}. '
+                        f'Log in within 30 days to cancel this request.',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[request.user.email],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
+
+        logger.info(f"Account deletion scheduled for user {request.user.email}")
+
+        return Response({
+            'success': True,
+            'data': {
+                'deletion_scheduled': deletion_date.isoformat(),
+                'message': _('Account deletion scheduled. Log in within 30 days to cancel.'),
+            },
+            'message': _('Deletion request received.'),
+        })
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Cancel account deletion',
+        description='Cancel a pending account deletion request.'
+    )
+    def delete(self, request):
+        if 'account_deletion_scheduled' not in (request.user.notification_settings or {}):
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'no_deletion_pending',
+                    'message': _('No deletion request pending.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        request.user.is_active = True
+        request.user.notification_settings.pop('account_deletion_scheduled', None)
+        request.user.save()
+
+        logger.info(f"Account deletion cancelled for user {request.user.email}")
+
+        return Response({
+            'success': True,
+            'data': {'message': _('Deletion cancelled. Account reactivated.')},
+            'message': _('Deletion cancelled.'),
+        })
+
+
+class AccountDeactivationView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Deactivate account',
+        description='Temporarily deactivate your account. Log back in to reactivate.'
+    )
+    def post(self, request):
+        password = request.data.get('password', '')
+
+        if not request.user.check_password(password):
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_password',
+                    'message': _('Password is incorrect.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        request.user.is_active = False
+        request.user.notification_settings['account_deactivated'] = True
+        request.user.notification_settings['deactivated_at'] = timezone.now().isoformat()
+        request.user.save()
+
+        # Blacklist all refresh tokens to force logout
+        from rest_framework_simplejwt.tokens import OutstandingToken
+        OutstandingToken.objects.filter(user=request.user).delete()
+
+        logger.info(f"Account deactivated for user {request.user.email}")
+
+        return Response({
+            'success': True,
+            'data': {
+                'message': _('Account deactivated. You can reactivate by logging in again.'),
+            },
+            'message': _('Account deactivated.'),
+        })
+
+class DataExportView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Export user data',
+        description='Download all personal data in JSON format (GDPR portability).'
+    )
+    def get(self, request):
+        user = request.user
+
+        # Gather all user data
+        export_data = {
+            'exported_at': timezone.now().isoformat(),
+            'personal_info': {
+                'id': str(user.id),
+                'email': user.email,
+                'phone_number': user.phone_number,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'date_of_birth': str(user.date_of_birth) if user.date_of_birth else None,
+                'date_joined': user.date_joined.isoformat(),
+                'preferred_language': user.preferred_language,
+            },
+            'profile': {},
+            'chamas': [],
+            'investments': [],
+            'settlements': [],
+            'contributions': [],
+            'loans': [],
+            'login_history': [],
+        }
+
+        # Profile
+        try:
+            profile = user.profile
+            export_data['profile'] = {
+                'occupation': profile.occupation,
+                'employer': profile.employer,
+                'county': profile.county,
+                'risk_tolerance': profile.risk_tolerance,
+                'investment_experience': profile.investment_experience,
+            }
+        except Exception:
+            pass
+
+        # Chama memberships
+        from apps.chamas.models import ChamaMember
+        memberships = ChamaMember.objects.filter(user=user).select_related('chama')
+        for m in memberships:
+            export_data['chamas'].append({
+                'chama_name': m.chama.name,
+                'role': m.get_role_display(),
+                'joined_at': m.joined_at.isoformat() if m.joined_at else None,
+                'total_contributions': str(m.total_contributions),
+                'current_balance': str(m.current_balance),
+            })
+
+        # Contributions
+        from apps.chamas.models import Contribution
+        contributions = Contribution.objects.filter(
+            member__user=user
+        ).select_related('chama').order_by('-created_at')[:50]
+        for c in contributions:
+            export_data['contributions'].append({
+                'chama': c.chama.name,
+                'amount': str(c.amount),
+                'status': c.get_status_display(),
+                'period_start': str(c.period_start),
+                'period_end': str(c.period_end),
+                'paid_at': c.paid_at.isoformat() if c.paid_at else None,
+            })
+
+        # Loans
+        from apps.chamas.models import Loan
+        loans = Loan.objects.filter(
+            borrower__user=user
+        ).select_related('chama').order_by('-created_at')
+        for loan in loans:
+            export_data['loans'].append({
+                'chama': loan.chama.name,
+                'principal': str(loan.principal),
+                'status': loan.get_status_display(),
+                'outstanding_balance': str(loan.outstanding_balance),
+            })
+
+        # Investments
+        from apps.investments.models import SACCOMemberHolding
+        holdings = SACCOMemberHolding.objects.filter(
+            user=user
+        ).select_related('sacco')
+        for h in holdings:
+            export_data['investments'].append({
+                'sacco': h.sacco.name,
+                'total_shares': str(h.total_shares),
+                'verification_status': h.verification_status,
+            })
+
+        # Settlements
+        from apps.transactions.models import SettlementIntent
+        from django.db import models
+        settlements = SettlementIntent.objects.filter(
+            models.Q(buyer=user) | models.Q(seller=user)
+        ).order_by('-created_at')[:50]
+        for s in settlements:
+            export_data['settlements'].append({
+                'type': 'buyer' if s.buyer == user else 'seller',
+                'amount': str(s.amount),
+                'shares': str(s.share_quantity),
+                'sacco': s.seller_sacco_name,
+                'state': s.get_state_display(),
+                'created_at': s.created_at.isoformat(),
+            })
+
+        # Login history
+        history = LoginHistory.objects.filter(user=user).order_by('-login_timestamp')[:20]
+        for h in history:
+            export_data['login_history'].append({
+                'timestamp': h.login_timestamp.isoformat(),
+                'ip_address': h.ip_address,
+                'device_type': h.device_type,
+                'location': h.location_city,
+            })
+
+        return Response({
+            'success': True,
+            'data': export_data,
+            'message': _('Data export complete.'),
         })
 
 class AdminUserManagementView(APIView):
