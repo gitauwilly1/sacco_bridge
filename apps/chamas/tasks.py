@@ -156,3 +156,27 @@ def send_loan_repayment_reminders(self):
     except Exception as e:
         logger.error(f"Loan repayment reminders failed: {str(e)}")
         raise self.retry(exc=e)
+
+@shared_task(
+    name='apps.chamas.tasks.update_chama_health_scores',
+    bind=True,
+    max_retries=1,
+)
+def update_chama_health_scores(self):
+    from apps.chamas.models import Chama
+    from apps.chamas.services import ChamaHealthService
+
+    logger.info("Starting chama health score update...")
+
+    chamas = Chama.objects.filter(status='ACTIVE', is_deleted=False)
+    updated = 0
+
+    for chama in chamas:
+        try:
+            ChamaHealthService.update_chama_health(chama)
+            updated += 1
+        except Exception as e:
+            logger.error(f"Health score failed for chama {chama.id}: {e}")
+
+    logger.info(f"Health scores updated for {updated}/{chamas.count()} chamas")
+    return {'updated': updated}

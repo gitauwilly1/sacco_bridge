@@ -535,6 +535,12 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=4, minute=0, day_of_week=1),
         'options': {'queue': 'analytics'},
     },
+
+    'update-chama-health-scores': {
+        'task': 'apps.chamas.tasks.update_chama_health_scores',
+        'schedule': crontab(hour=3, minute=0),
+        'options': {'queue': 'analytics'},
+    },
 }
 
 # Test configuration

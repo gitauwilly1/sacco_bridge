@@ -111,6 +111,23 @@ class ChamaViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         membership.left_at = timezone.now()
         membership.save()
         return Response({'success': True, 'data': {}, 'message': _('Left chama.')})
+    
+    @action(detail=True, methods=['post'])
+    def refresh_health(self, request, pk=None):
+        from apps.chamas.services import ChamaHealthService
+
+        chama = self.get_object()
+        result = ChamaHealthService.update_chama_health(chama)
+
+        return Response({
+            'success': True,
+            'data': {
+                'health_score': str(result['score']),
+                'health_score_grade': result['grade'],
+                'health_score_breakdown': result['breakdown'],
+            },
+            'message': _('Health score refreshed.'),
+        })
 
 
 @extend_schema_view(

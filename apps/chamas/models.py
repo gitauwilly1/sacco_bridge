@@ -286,6 +286,23 @@ class Chama(BaseModel):
         help_text=_("User who created the chama.")
     )
 
+    health_score = models.DecimalField(
+    max_digits=4, decimal_places=1, default=0.0,
+    help_text=_("Overall chama health score (0.0-100.0).")
+    )
+    health_score_grade = models.CharField(
+        max_length=3, blank=True, default='',
+        help_text=_("Letter grade (A+, A, B, C, D, F).")
+    )
+    health_score_breakdown = models.JSONField(
+        default=dict,
+        help_text=_("Breakdown of score components.")
+    )
+    health_score_updated_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text=_("When the health score was last calculated.")
+    )
+
     class Meta:
         verbose_name = _('Chama')
         verbose_name_plural = _('Chamas')

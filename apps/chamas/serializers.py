@@ -32,7 +32,8 @@ class ChamaSerializer(BaseSerializer, DynamicFieldsMixin):
             'auto_verify_mpesa', 'allow_member_contributions',
             'require_contribution_verification',
             'member_count', 'created_by_name', 'is_member',
-            'created_at', 'updated_at',
+            'created_at', 'updated_at', 'health_score', 
+            'health_score_grade', 'health_score_breakdown',
         ]
         read_only_fields = [
             'id', 'slug', 'invite_code', 'total_savings',
