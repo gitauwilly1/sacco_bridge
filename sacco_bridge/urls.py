@@ -41,6 +41,7 @@ urlpatterns = [
     path('api/v1/activity/', include('apps.activity.urls')),
     path('api/v1/webhooks/', include('apps.webhooks.urls')),
     path('api/v1/scoring/', include('apps.scoring.urls')),
+    path('api/v1/escrow/', include('apps.escrow.urls')),
 ]
 
 # Serve media files in development
