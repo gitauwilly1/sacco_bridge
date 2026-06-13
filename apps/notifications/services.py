@@ -273,7 +273,8 @@ class NotificationService:
             logger.error(f"Notification template not found: {template_name}")
             return None
 
-        rendered = template.render(context)
+        language = user.preferred_language if hasattr(user, 'preferred_language') else 'en'
+        rendered = template.render(context, language=language)
 
         return cls.create_notification(
             user=user,
@@ -285,7 +286,6 @@ class NotificationService:
             action_url=action_url,
             data=data,
         )
-
     @classmethod
     def _get_user_channels(cls, user, category):
         channels = [NotificationChannel.IN_APP]

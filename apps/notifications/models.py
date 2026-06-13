@@ -106,6 +106,19 @@ class NotificationTemplate(models.Model):
         help_text=_("Whether this template is active.")
     )
 
+    sw_title_template = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text=_("Swahili title template.")
+    )
+    sw_body_template = models.TextField(
+        blank=True, default='',
+        help_text=_("Swahili body template.")
+    )
+    sw_sms_template = models.TextField(
+        blank=True, default='',
+        help_text=_("Swahili SMS template (160 chars max).")
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -117,29 +130,33 @@ class NotificationTemplate(models.Model):
     def __str__(self):
         return f"{self.name} ({self.get_category_display()})"
 
-    def render(self, context):
-        rendered_title = self.title_template
-        rendered_body = self.body_template
-        rendered_sms = self.sms_template
-        rendered_email_subject = self.email_subject_template
-        rendered_email_body = self.email_body_template
+    def render(self, context, language='en'):
+        if language == 'sw' and self.sw_title_template:
+            title_tpl = self.sw_title_template
+            body_tpl = self.sw_body_template
+            sms_tpl = self.sw_sms_template
+        else:
+            title_tpl = self.title_template
+            body_tpl = self.body_template
+            sms_tpl = self.sms_template
+
+        rendered_title = title_tpl
+        rendered_body = body_tpl
+        rendered_sms = sms_tpl
 
         for key, value in context.items():
             placeholder = '{' + key + '}'
             rendered_title = rendered_title.replace(placeholder, str(value))
             rendered_body = rendered_body.replace(placeholder, str(value))
             rendered_sms = rendered_sms.replace(placeholder, str(value))
-            rendered_email_subject = rendered_email_subject.replace(placeholder, str(value))
-            rendered_email_body = rendered_email_body.replace(placeholder, str(value))
 
         return {
             'title': rendered_title,
             'body': rendered_body,
             'sms': rendered_sms,
-            'email_subject': rendered_email_subject,
-            'email_body': rendered_email_body,
+            'email_subject': rendered_title,
+            'email_body': rendered_body,
         }
-
 
 class Notification(BaseModel):
 
