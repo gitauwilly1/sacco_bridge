@@ -1,7 +1,7 @@
 
 from django.urls import path
 from apps.users.views import (
-    AdminUserManagementView, UserProfileView, UserProfileDetailView,
+    AdminUserManagementView, ProfilePictureUploadView, UserProfileView, UserProfileDetailView,
     LoginHistoryView,PhoneNumberUpdateView,
 )
 
@@ -11,4 +11,5 @@ urlpatterns = [
     path('login-history/', LoginHistoryView.as_view(), name='user-login-history'),
     path('admin/manage/', AdminUserManagementView.as_view(), name='admin-user-manage'),
     path('phone-number/', PhoneNumberUpdateView.as_view(), name='phone-number-update'),
+    path('profile/picture/', ProfilePictureUploadView.as_view(), name='user-profile-picture'),
 ]

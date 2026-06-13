@@ -110,6 +110,53 @@ class AdminSACCOViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             'data': SACCOSerializer(sacco).data,
             'message': _('SACCO reactivated.')
         })
+    
+    @action(detail=True, methods=['post'])
+    def upload_logo(self, request, pk=None):
+        sacco = self.get_object()
+
+        if 'logo' not in request.FILES:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'missing_file',
+                    'message': _('No file uploaded. Use key "logo".')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        file = request.FILES['logo']
+
+        if file.size > 2 * 1024 * 1024:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'file_too_large',
+                    'message': _('Logo must be under 2MB.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
+        if file.content_type not in allowed_types:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_format',
+                    'message': _('Only JPG, PNG, WebP, and SVG images are accepted.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if sacco.logo:
+            sacco.logo.delete(save=False)
+
+        sacco.logo = file
+        sacco.save(update_fields=['logo'])
+
+        serializer = SACCOSerializer(sacco)
+        return Response({
+            'success': True,
+            'data': serializer.data,
+            'message': _('Logo uploaded.'),
+        })
 
 @extend_schema_view(
     list=extend_schema(tags=['Investments'], summary='List my SACCO holdings'),

@@ -519,6 +519,91 @@ class TwoFactorDisableWithBackupView(APIView):
             'message': _('2FA disabled successfully'),
         })
 
+class ProfilePictureUploadView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Upload profile picture',
+        description='Upload a profile picture. Max 5MB. Accepted formats: JPG, PNG, WebP.',
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'profile_picture': {
+                        'type': 'string',
+                        'format': 'binary',
+                        'description': 'Image file (JPG, PNG, WebP, max 5MB)'
+                    }
+                }
+            }
+        }
+    )
+    def post(self, request):
+        if 'profile_picture' not in request.FILES:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'missing_file',
+                    'message': _('No file uploaded. Use key "profile_picture".')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        file = request.FILES['profile_picture']
+
+        # Validate file size (5MB max)
+        if file.size > 5 * 1024 * 1024:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'file_too_large',
+                    'message': _('File size must be under 5MB.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/png', 'image/webp']
+        if file.content_type not in allowed_types:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_format',
+                    'message': _('Only JPG, PNG, and WebP images are accepted.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Delete old profile picture if exists
+        if request.user.profile_picture:
+            request.user.profile_picture.delete(save=False)
+
+        request.user.profile_picture = file
+        request.user.save(update_fields=['profile_picture'])
+
+        serializer = UserProfileSerializer(request.user, context={'request': request})
+        return Response({
+            'success': True,
+            'data': serializer.data,
+            'message': _('Profile picture updated.'),
+        })
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Remove profile picture',
+        description='Remove current profile picture.'
+    )
+    def delete(self, request):
+        if request.user.profile_picture:
+            request.user.profile_picture.delete(save=False)
+            request.user.profile_picture = None
+            request.user.save(update_fields=['profile_picture'])
+
+        return Response({
+            'success': True,
+            'data': {},
+            'message': _('Profile picture removed.'),
+        })
+
 class PasswordResetConfirmView(APIView):
 
     permission_classes = [permissions.AllowAny]
