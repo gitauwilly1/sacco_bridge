@@ -74,6 +74,7 @@ LOCAL_APPS = [
     'apps.reports',
     'apps.activity',
     'apps.webhooks',
+    'apps.scoring',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -540,6 +541,12 @@ CELERY_BEAT_SCHEDULE = {
     'update-chama-health-scores': {
         'task': 'apps.chamas.tasks.update_chama_health_scores',
         'schedule': crontab(hour=3, minute=0),
+        'options': {'queue': 'analytics'},
+    },
+
+    'update-credit-scores': {
+        'task': 'apps.scoring.tasks.update_credit_scores',
+        'schedule': crontab(hour=2, minute=0, day_of_month=1),
         'options': {'queue': 'analytics'},
     },
 }
