@@ -1,7 +1,3 @@
-"""
-Google reCAPTCHA v3 verification service.
-"""
-
 import logging
 import requests
 from django.conf import settings
@@ -11,12 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 class ReCaptchaService:
-    """
-    Verifies reCAPTCHA tokens with Google's API.
-    
-    In development (DEBUG=True), verification is optional.
-    In production, invalid tokens are rejected.
-    """
 
     VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
     SCORE_THRESHOLD = 0.5
