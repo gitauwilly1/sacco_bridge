@@ -171,10 +171,10 @@ def log_settlement(sender, instance, created, **kwargs):
             activity_type=ActivityType.SETTLEMENT_INITIATED,
             title=f'Settlement initiated: {instance.share_quantity} shares in {instance.seller_sacco_name}',
             description=f'Amount: KSh {instance.amount:,.2f}.',
-            sacco_id=instance.seller_sacco_id,
+            sacco=None,
             reference_id=instance.uuid,
             reference_type='SettlementIntent',
-            metadata={'amount': str(instance.amount)},
+            metadata={'amount': str(instance.amount), 'sacco_id': instance.seller_sacco_id},
         )
     elif instance.state == 'LEDGER_FINALIZED':
         ActivityLog.log(
