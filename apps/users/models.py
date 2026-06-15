@@ -232,6 +232,10 @@ class UserProfile(BaseModel, AddressMixin):
 
 class LoginHistory(models.Model):
 
+    uuid = models.UUIDField(
+        default=uuid.uuid4, editable=False, unique=True, db_index=True,
+        help_text=_("Public session identifier.")
+    )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='login_history')
     login_timestamp = models.DateTimeField(auto_now_add=True)
     ip_address = models.GenericIPAddressField()
@@ -240,7 +244,7 @@ class LoginHistory(models.Model):
     login_successful = models.BooleanField(default=True)
     failure_reason = models.CharField(max_length=255, blank=True, default='')
     location_city = models.CharField(max_length=100, blank=True, default='')
-
+    
     class Meta:
         verbose_name = _('Login History')
         verbose_name_plural = _('Login Histories')

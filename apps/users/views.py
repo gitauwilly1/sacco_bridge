@@ -759,7 +759,7 @@ class ActiveSessionsView(APIView):
                 session.user_agent == current_ua
             )
             data.append({
-                'session_id': str(session.id),
+                'session_id': str(session.uuid),
                 'ip_address': self._mask_ip(session.ip_address),
                 'device_type': session.device_type,
                 'location_city': session.location_city or 'Unknown',
@@ -784,7 +784,7 @@ class ActiveSessionsView(APIView):
     def delete(self, request, session_id):
         try:
             session = LoginHistory.objects.get(
-                id=session_id,
+                uuid=session_id,
                 user=request.user,
                 login_successful=True,
             )
