@@ -217,6 +217,29 @@ class ResendVerificationSerializer(serializers.Serializer):
     contact = serializers.CharField(required=True)
     method = serializers.ChoiceField(choices=['email', 'sms'], required=True)
 
+    def validate(self, data):
+        contact = data.get('contact', '').strip()
+        method = data.get('method')
+
+        if method == 'email':
+            try:
+                user = User.objects.get(email__iexact=contact)
+                if user.email_verified:
+                    raise serializers.ValidationError({'contact': _('Email already verified.')})
+            except User.DoesNotExist:
+                raise serializers.ValidationError({'contact': _('No account found with this email.')})
+        elif method == 'sms':
+            import re
+            phone = re.sub(r'\s+', '', contact)
+            try:
+                user = User.objects.get(phone_number=phone)
+                if user.phone_verified:
+                    raise serializers.ValidationError({'contact': _('Phone already verified.')})
+            except User.DoesNotExist:
+                raise serializers.ValidationError({'contact': _('No account found with this phone.')})
+
+        data['user'] = user
+        return data
 
 class PasswordChangeSerializer(serializers.Serializer):
     current_password = serializers.CharField(required=True, style={'input_type': 'password'})
