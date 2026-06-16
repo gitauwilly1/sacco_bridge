@@ -130,6 +130,88 @@ class ChamaViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             'message': _('Health score refreshed.'),
         })
 
+    @action(detail=True, methods=['get'])
+    def dashboard(self, request, pk=None):
+        chama = self.get_object()
+
+        # Basic stats
+        members = chama.memberships.filter(is_active=True)
+        total_members = members.count()
+        
+        # Recent contributions
+        recent_contributions = chama.contributions.filter(
+            is_deleted=False
+        ).select_related('member__user').order_by('-created_at')[:5]
+
+        # Upcoming meetings
+        upcoming_meetings = chama.meetings.filter(
+            date__gte=timezone.now().date(),
+            is_deleted=False,
+        ).order_by('date', 'start_time')[:3]
+
+        # Active loans summary
+        active_loans = chama.loans.filter(
+            status__in=[LoanStatus.DISBURSED, LoanStatus.PARTIALLY_REPAID],
+            is_deleted=False,
+        )
+
+        # Active polls
+        active_polls = chama.polls.filter(is_active=True).count()
+
+        # Health score
+        health = {
+            'score': str(chama.health_score) if chama.health_score else 'N/A',
+            'grade': chama.health_score_grade or 'N/A',
+        }
+
+        from apps.chamas.serializers import (
+            ContributionSerializer, MeetingSerializer
+        )
+
+        return Response({
+            'success': True,
+            'data': {
+                'chama_name': chama.name,
+                'chama_type': chama.get_chama_type_display(),
+                'total_members': total_members,
+                'total_savings': str(chama.total_savings),
+                'available_balance': str(chama.available_balance),
+                'outstanding_loans': str(chama.outstanding_loans),
+                'active_loans_count': active_loans.count(),
+                'active_polls': active_polls,
+                'health': health,
+                'contribution_amount': str(chama.contribution_amount),
+                'contribution_frequency': chama.get_contribution_frequency_display(),
+                'invite_code': chama.invite_code,
+                'recent_contributions': ContributionSerializer(recent_contributions, many=True).data,
+                'upcoming_meetings': MeetingSerializer(upcoming_meetings, many=True).data,
+            },
+        })
+
+    @action(detail=True, methods=['get'])
+    def invite_link(self, request, pk=None):
+        chama = self.get_object()
+
+        from django.conf import settings
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        invite_url = f"{frontend_url}/join-chama/{chama.invite_code}"
+
+        # Generate deep link for mobile
+        deep_link = f"saccobridge://join/{chama.invite_code}"
+
+        return Response({
+            'success': True,
+            'data': {
+                'invite_code': chama.invite_code,
+                'invite_url': invite_url,
+                'deep_link': deep_link,
+                'chama_name': chama.name,
+                'share_text': _('Join my chama "{name}" on Sacco Bridge! Use code: {code}').format(
+                    name=chama.name, code=chama.invite_code
+                ),
+            },
+        })
+
 
 @extend_schema_view(
     list=extend_schema(tags=['Chamas'], summary='List chama members'),
@@ -920,6 +1002,15 @@ class BulkInviteMembersView(APIView):
                 # Format phone number
                 import re
                 phone = re.sub(r'\s+', '', str(phone))
+                
+                # Validate Kenyan phone format
+                if not re.match(r'^(?:\+?254|0)?[17]\d{8}$', phone):
+                    result['status'] = 'failed'
+                    result['error'] = _('Invalid Kenyan phone number.')
+                    failure_count += 1
+                    results.append(result)
+                    continue
+                
                 if phone.startswith('+254'):
                     phone = '0' + phone[4:]
                 elif not phone.startswith('0'):
