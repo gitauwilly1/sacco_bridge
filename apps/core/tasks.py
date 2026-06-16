@@ -57,3 +57,19 @@ def cleanup_expired_data(self):
 
     except Exception as e:
         logger.error(f"Cleanup failed: {str(e)}")
+
+@shared_task(
+    name='apps.core.tasks.backup_database',
+    bind=True,
+    max_retries=1,
+)
+def backup_database(self):
+    from django.core.management import call_command
+    from io import StringIO
+
+    output = StringIO()
+    call_command('backup_db', stdout=output)
+    result = output.getvalue()
+
+    logger.info(f"Database backup completed: {result.strip()}")
+    return {'status': 'completed', 'output': result.strip()}

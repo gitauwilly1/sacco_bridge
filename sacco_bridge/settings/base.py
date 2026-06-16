@@ -579,6 +579,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=4, minute=0),
         'options': {'queue': 'maintenance'},
     },
+     'daily-database-backup': {
+        'task': 'apps.core.tasks.backup_database',
+        'schedule': crontab(hour=1, minute=0),
+        'options': {'queue': 'maintenance'},
+    },
 }
 
 # Test configuration

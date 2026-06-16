@@ -71,4 +71,4 @@ test_db.sqlite3
 media/receipts/
 
 # Jupyter
-*.ipynb_checkpoints/
+*.ipynb_checkpoints/backups/
