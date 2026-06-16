@@ -62,3 +62,70 @@ class CreditScore(models.Model):
             return 'D'
         else:
             return 'E'
+
+
+class UnderwritingDecision(models.TextChoices):
+    APPROVE = 'APPROVE', _('Approve')
+    APPROVE_WITH_CONDITIONS = 'APPROVE_WITH_CONDITIONS', _('Approve with Conditions')
+    FLAG_FOR_REVIEW = 'FLAG_FOR_REVIEW', _('Flag for Manual Review')
+    REJECT = 'REJECT', _('Reject')
+
+
+class LoanUnderwriting(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    loan = models.OneToOneField(
+        'chamas.Loan', on_delete=models.CASCADE, related_name='underwriting'
+    )
+
+    credit_score = models.ForeignKey(
+        CreditScore, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    credit_score_value = models.PositiveIntegerField(default=0)
+
+    chama_health_score = models.DecimalField(
+        max_digits=4, decimal_places=1, default=0.0
+    )
+
+    decision = models.CharField(
+        max_length=30, choices=UnderwritingDecision.choices,
+        default=UnderwritingDecision.FLAG_FOR_REVIEW,
+    )
+
+    confidence_score = models.PositiveIntegerField(
+        default=50, help_text=_("Confidence in the automated decision (0-100).")
+    )
+
+    reasoning = models.JSONField(
+        default=list,
+        help_text=_("List of factors contributing to the decision.")
+    )
+
+    conditions = models.JSONField(
+        default=list,
+        help_text=_("Conditions for approval if APPROVE_WITH_CONDITIONS.")
+    )
+
+    overridden_by = models.ForeignKey(
+        'users.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='overridden_underwritings'
+    )
+
+    overridden_decision = models.CharField(
+        max_length=30, choices=UnderwritingDecision.choices, null=True, blank=True
+    )
+
+    overridden_at = models.DateTimeField(null=True, blank=True)
+    override_reason = models.TextField(blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Loan Underwriting')
+        verbose_name_plural = _('Loan Underwritings')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Underwriting for loan {self.loan.id}: {self.decision}"

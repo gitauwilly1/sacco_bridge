@@ -6,3 +6,6 @@ class ScoringConfig(AppConfig):
     name = 'apps.scoring'
     verbose_name = 'Credit Scoring'
     label = 'scoring'
+
+    def ready(self):
+        import apps.scoring.signals
