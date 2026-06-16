@@ -28,6 +28,14 @@ class Command(BaseCommand):
             self.create_analytics_data()
             self.create_knowledge_articles()
             self.create_chat_sessions()
+            self.create_polls_and_votes()
+            self.create_constitutions_and_agreements()
+            self.create_disputes()
+            self.create_fraud_assessments()
+            self.create_credit_scores()
+            self.create_escrow_accounts()
+            self.create_webhook_subscriptions()
+            self.create_legal_documents()
 
         self.stdout.write(self.style.SUCCESS('Database seeded successfully!'))
 
@@ -1430,3 +1438,245 @@ class Command(BaseCommand):
                 )
 
         self.stdout.write('  Created sample chat sessions')
+
+    # 12. POLLS AND VOTES
+
+    def create_polls_and_votes(self):
+        from apps.chamas.models import Chama, ChamaMember, Poll, PollOption, Vote
+
+        chamas = Chama.objects.filter(status='ACTIVE')[:3]
+
+        for chama in chamas:
+            members = list(chama.memberships.filter(is_active=True)[:10])
+            if len(members) < 3:
+                continue
+
+            admin = members[0]
+
+            poll = Poll.objects.create(
+                chama=chama,
+                title=random.choice([
+                    'Should we increase monthly contributions?',
+                    'Approve new member: Jane Doe?',
+                    'Change meeting day to Saturday?',
+                    'Invest group savings in SACCO shares?',
+                ]),
+                description='Please cast your vote on this important matter.',
+                created_by=admin,
+                voting_method=random.choice(['MAJORITY', 'TWO_THIRDS', 'UNANIMOUS']),
+                is_anonymous=False,
+                is_active=True,
+            )
+
+            options = ['Yes', 'No', 'Abstain']
+            for i, opt_text in enumerate(options):
+                PollOption.objects.create(poll=poll, option_text=opt_text, order=i)
+
+            for member in members[1:6]:
+                option = poll.options.order_by('?').first()
+                if option and not Vote.objects.filter(poll=poll, voter=member).exists():
+                    Vote.objects.create(poll=poll, option=option, voter=member)
+
+        self.stdout.write('  Created polls and votes')
+
+    # 13. CONSTITUTIONS AND AGREEMENTS
+
+    def create_constitutions_and_agreements(self):
+        from apps.chamas.models import Chama, ChamaMember, ConstitutionAgreement
+
+        chamas = Chama.objects.filter(status='ACTIVE')[:2]
+
+        for chama in chamas:
+            chama.constitution_version = '1.0'
+            chama.constitution_uploaded_at = timezone.now() - timedelta(days=30)
+            chama.save(update_fields=['constitution_version', 'constitution_uploaded_at'])
+
+            members = chama.memberships.filter(is_active=True)[:5]
+            for member in members:
+                ConstitutionAgreement.objects.get_or_create(
+                    member=member,
+                    chama=chama,
+                    version='1.0',
+                    defaults={'agreed_at': timezone.now() - timedelta(days=random.randint(1, 30))},
+                )
+
+        self.stdout.write('  Created constitutions and agreements')
+
+    # 14. DISPUTES
+
+    def create_disputes(self):
+        from apps.transactions.models import (
+            Dispute,
+            DisputeReason,
+            DisputeStatus,
+            SettlementIntent,
+            SettlementState,
+        )
+
+        settlements = SettlementIntent.objects.filter(
+            state__in=['INTENT_LOCKED', 'BUYER_DEBIT_CONFIRMED', 'SELLER_CREDIT_INITIATED']
+        )[:2]
+
+        for settlement in settlements:
+            Dispute.objects.get_or_create(
+                settlement=settlement,
+                raised_by=settlement.buyer,
+                defaults={
+                    'reason': random.choice([
+                        DisputeReason.FUNDS_DEBITED_NO_SHARES,
+                        DisputeReason.SETTLEMENT_STUCK,
+                    ]),
+                    'description': 'Automated test dispute for development.',
+                    'status': DisputeStatus.OPEN,
+                },
+            )
+
+        self.stdout.write('  Created sample disputes')
+
+    # 15. FRAUD ASSESSMENTS
+
+    def create_fraud_assessments(self):
+        from apps.fraud.models import (
+            RiskLevel,
+            FraudAction,
+            TransactionRiskAssessment,
+        )
+        from apps.transactions.models import SettlementIntent
+
+        users = User.objects.filter(is_active=True)[:5]
+        settlements = SettlementIntent.objects.filter(
+            state='LEDGER_FINALIZED'
+        )[:5]
+
+        for i, settlement in enumerate(settlements):
+            user = users[i % len(users)] if users else settlement.buyer
+
+            TransactionRiskAssessment.objects.create(
+                user=user,
+                transaction_type='SETTLEMENT',
+                transaction_reference=str(settlement.uuid),
+                amount=settlement.amount,
+                risk_score=random.randint(5, 45),
+                risk_level=RiskLevel.LOW,
+                recommended_action=FraudAction.ALLOW,
+                applied_action=FraudAction.ALLOW,
+                triggers=['NORMAL_TRANSACTION'],
+                velocity_24h_count=random.randint(0, 5),
+                velocity_24h_total=settlement.amount,
+                ip_address='127.0.0.1',
+                ip_reputation_score=random.randint(50, 100),
+            )
+
+        self.stdout.write('  Created fraud assessments')
+
+    # 16. CREDIT SCORES
+
+    def create_credit_scores(self):
+        from apps.chamas.models import Chama, ChamaMember
+        from apps.scoring.models import CreditScore
+
+        chamas = Chama.objects.filter(status='ACTIVE')[:3]
+
+        for chama in chamas:
+            members = chama.memberships.filter(is_active=True)[:5]
+            for member in members:
+                score = random.randint(450, 850)
+
+                CreditScore.objects.create(
+                    user=member.user,
+                    chama=chama,
+                    score=score,
+                    grade=CreditScore.get_grade(score),
+                    contribution_score=random.randint(50, 250),
+                    repayment_score=random.randint(50, 250),
+                    attendance_score=random.randint(30, 150),
+                    savings_score=random.randint(20, 100),
+                    trust_score=random.randint(20, 100),
+                    valid_until=timezone.now() + timedelta(days=30),
+                )
+
+        self.stdout.write('  Created credit scores')
+
+    # 17. ESCROW ACCOUNTS
+
+    def create_escrow_accounts(self):
+        from apps.escrow.models import EscrowAccount, EscrowStatus
+        from apps.transactions.models import SettlementIntent
+
+        settlements = SettlementIntent.objects.filter(
+            state='LEDGER_FINALIZED'
+        )[:3]
+
+        for settlement in settlements:
+            EscrowAccount.objects.get_or_create(
+                settlement=settlement,
+                defaults={
+                    'buyer': settlement.buyer,
+                    'seller': settlement.seller,
+                    'amount': settlement.amount,
+                    'platform_fee': settlement.platform_fee,
+                    'status': EscrowStatus.RELEASED,
+                    'buyer_ref': settlement.buyer_debit_ref,
+                    'seller_ref': settlement.seller_credit_ref,
+                    'funded_at': settlement.buyer_debited_at,
+                    'released_at': settlement.seller_credited_at,
+                    'completed_at': settlement.finalized_at,
+                },
+            )
+
+        self.stdout.write('  Created escrow accounts')
+
+    # 18. WEBHOOK SUBSCRIPTIONS
+
+    def create_webhook_subscriptions(self):
+        from apps.webhooks.models import WebhookSubscription, WebhookEventType
+
+        WebhookSubscription.objects.get_or_create(
+            url='https://webhook.site/test-sacco-bridge',
+            defaults={
+                'name': 'Test Webhook Endpoint',
+                'is_active': True,
+                'events': [
+                    WebhookEventType.SETTLEMENT_COMPLETED,
+                    WebhookEventType.OFFER_ACCEPTED,
+                    WebhookEventType.LIQUIDITY_REQUEST_CREATED,
+                ],
+            },
+        )
+
+        self.stdout.write('  Created webhook subscriptions')
+
+    # 19. LEGAL DOCUMENTS
+
+    def create_legal_documents(self):
+        from apps.legal.models import LegalDocument, LegalDocumentType
+
+        admin = User.objects.filter(email='admin@saccobridge.co.ke').first()
+
+        terms, _ = LegalDocument.objects.get_or_create(
+            document_type=LegalDocumentType.TERMS_AND_CONDITIONS,
+            version='1.0.0',
+            defaults={
+                'title': 'Terms & Conditions v1.0',
+                'content': 'These are the Terms and Conditions for Sacco Bridge. By using this platform, you agree to these terms.\n\n1. Account Registration\n2. Chama Operations\n3. SACCO Share Trading\n4. Fees and Payments\n5. Dispute Resolution\n6. Limitation of Liability\n7. Same-SACCO Trading Restriction',
+                'summary': 'Initial release of Terms and Conditions covering platform usage, chama operations, SACCO trading, and dispute resolution.',
+                'is_current': True,
+                'published_at': timezone.now() - timedelta(days=90),
+                'published_by': admin,
+            },
+        )
+
+        privacy, _ = LegalDocument.objects.get_or_create(
+            document_type=LegalDocumentType.PRIVACY_POLICY,
+            version='1.0.0',
+            defaults={
+                'title': 'Privacy Policy v1.0',
+                'content': 'This Privacy Policy explains how Sacco Bridge collects, uses, and protects your personal data.\n\n1. Information We Collect\n2. How We Use Your Data\n3. Data Protection\n4. Your Rights\n5. Contact Information',
+                'summary': 'Initial release of Privacy Policy covering data collection, usage, protection, and user rights.',
+                'is_current': True,
+                'published_at': timezone.now() - timedelta(days=90),
+                'published_by': admin,
+            },
+        )
+
+        self.stdout.write('  Created legal documents')
