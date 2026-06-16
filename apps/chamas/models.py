@@ -348,7 +348,6 @@ class Chama(BaseModel):
         super().save(*args, **kwargs)
 
     def _generate_invite_code(self):
-        """Generate a unique invite code."""
         import random
         import string
         prefix = ''.join(random.choices(string.ascii_uppercase, k=4))
