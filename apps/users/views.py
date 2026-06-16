@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiParameter
-
+from apps.core.pagination import SmallPagination
 from apps.core.exceptions import AuthenticationFailedError, VerificationError
 from apps.users.models import LoginHistory
 from apps.users.serializers import (
@@ -1401,3 +1401,217 @@ class PasswordStrengthView(APIView):
                 'feedback': feedback if feedback else [_('Password is strong.')],
             },
         })
+
+class DeletionRequestView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Admin'],
+        summary='Request record deletion',
+        description='Submit a deletion request for admin approval.'
+    )
+    def post(self, request):
+        from django.contrib.contenttypes.models import ContentType
+        from apps.core.models import DeletionRequest
+
+        app_label = request.data.get('app_label')
+        model_name = request.data.get('model_name')
+        object_id = request.data.get('object_id')
+        reason = request.data.get('reason', '')
+
+        if not all([app_label, model_name, object_id]):
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_params', 'message': _('app_label, model_name, and object_id are required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            content_type = ContentType.objects.get(app_label=app_label, model=model_name)
+        except ContentType.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_model', 'message': _('Model not found.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check for existing pending request
+        existing = DeletionRequest.objects.filter(
+            requested_by=request.user,
+            content_type=content_type,
+            object_id=object_id,
+            status='PENDING',
+        ).exists()
+
+        if existing:
+            return Response({
+                'success': False,
+                'error': {'code': 'duplicate', 'message': _('A pending deletion request already exists.')}
+            }, status=status.HTTP_409_CONFLICT)
+
+        try:
+            obj = content_type.get_object_for_this_type(id=object_id)
+            object_repr = str(obj)[:255]
+        except Exception:
+            object_repr = f"{model_name}:{object_id}"
+
+        deletion_request = DeletionRequest.objects.create(
+            requested_by=request.user,
+            content_type=content_type,
+            object_id=object_id,
+            object_repr=object_repr,
+            reason=reason,
+        )
+
+        return Response({
+            'success': True,
+            'data': {
+                'request_id': str(deletion_request.id),
+                'status': deletion_request.status,
+                'message': _('Deletion request submitted for admin review.'),
+            },
+            'message': _('Request submitted.'),
+        }, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        tags=['Admin'],
+        summary='My deletion requests',
+        description='View my deletion requests and their status.'
+    )
+    def get(self, request):
+        from apps.core.models import DeletionRequest
+
+        requests = DeletionRequest.objects.filter(
+            requested_by=request.user
+        ).order_by('-requested_at')[:20]
+
+        data = []
+        for req in requests:
+            data.append({
+                'id': str(req.id),
+                'object_repr': req.object_repr,
+                'reason': req.reason,
+                'status': req.status,
+                'review_notes': req.review_notes,
+                'requested_at': req.requested_at.isoformat(),
+                'reviewed_at': req.reviewed_at.isoformat() if req.reviewed_at else None,
+            })
+
+        return Response({
+            'success': True,
+            'data': data,
+        })
+
+class AdminDeletionReviewView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
+
+    @extend_schema(
+        tags=['Admin'],
+        summary='List deletion requests',
+        description='View all pending deletion requests.'
+    )
+    def get(self, request):
+        from apps.core.models import DeletionRequest
+
+        status_filter = request.query_params.get('status', 'PENDING')
+        requests = DeletionRequest.objects.filter(
+            status=status_filter
+        ).select_related('requested_by').order_by('-requested_at')
+
+        paginator = SmallPagination()
+        page = paginator.paginate_queryset(requests, request)
+
+        data = []
+        for req in page:
+            data.append({
+                'id': str(req.id),
+                'requested_by': req.requested_by.get_full_name(),
+                'requested_by_email': req.requested_by.email,
+                'object_repr': req.object_repr,
+                'reason': req.reason,
+                'status': req.status,
+                'requested_at': req.requested_at.isoformat(),
+            })
+
+        return paginator.get_paginated_response(data)
+
+    @extend_schema(
+        tags=['Admin'],
+        summary='Review deletion request',
+        description='Approve or reject a deletion request.'
+    )
+    def post(self, request, pk=None):
+        from apps.core.models import DeletionRequest
+
+        try:
+            deletion_request = DeletionRequest.objects.get(id=pk, status='PENDING')
+        except DeletionRequest.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('Request not found.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        action = request.data.get('action')
+        notes = request.data.get('notes', '')
+
+        if action == 'approve':
+            success = deletion_request.approve(request.user, notes)
+            if success:
+                # Notify user
+                try:
+                    from apps.notifications.services import NotificationService
+                    from apps.notifications.models import NotificationCategory, NotificationPriority
+
+                    NotificationService.create_notification(
+                        user=deletion_request.requested_by,
+                        category=NotificationCategory.SYSTEM,
+                        title=_('Deletion Approved'),
+                        body=_('Your request to delete "%(object)s" has been approved.') % {
+                            'object': deletion_request.object_repr
+                        },
+                        priority=NotificationPriority.MEDIUM,
+                    )
+                except Exception:
+                    pass
+
+                return Response({
+                    'success': True,
+                    'data': {'status': 'APPROVED'},
+                    'message': _('Deletion approved and executed.'),
+                })
+            else:
+                return Response({
+                    'success': False,
+                    'error': {'code': 'delete_failed', 'message': _('Object could not be deleted.')}
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        elif action == 'reject':
+            deletion_request.reject(request.user, notes)
+
+            try:
+                from apps.notifications.services import NotificationService
+                from apps.notifications.models import NotificationCategory, NotificationPriority
+
+                NotificationService.create_notification(
+                    user=deletion_request.requested_by,
+                    category=NotificationCategory.SYSTEM,
+                    title=_('Deletion Rejected'),
+                    body=_('Your request to delete "%(object)s" was rejected. Reason: %(reason)s') % {
+                        'object': deletion_request.object_repr,
+                        'reason': notes or _('No reason provided.'),
+                    },
+                    priority=NotificationPriority.MEDIUM,
+                )
+            except Exception:
+                pass
+
+            return Response({
+                'success': True,
+                'data': {'status': 'REJECTED'},
+                'message': _('Deletion rejected.'),
+            })
+
+        return Response({
+            'success': False,
+            'error': {'code': 'invalid_action', 'message': _('Action must be approve or reject.')}
+        }, status=status.HTTP_400_BAD_REQUEST)

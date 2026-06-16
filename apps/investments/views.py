@@ -55,9 +55,22 @@ class SACCOViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
     def share_classes(self, request, pk=None):
         sacco = self.get_object()
         classes = sacco.share_classes.filter(is_deleted=False)
+
+        # Filter by transferability
+        transferable = request.query_params.get('transferable')
+        if transferable is not None:
+            is_transferable = transferable.lower() == 'true'
+            classes = classes.filter(is_transferable=is_transferable)
+
+        # Filter by dividend eligibility
+        dividend_eligible = request.query_params.get('dividend_eligible')
+        if dividend_eligible is not None:
+            is_eligible = dividend_eligible.lower() == 'true'
+            classes = classes.filter(dividend_eligible=is_eligible)
+
         serializer = SACCOShareClassSerializer(classes, many=True)
         return Response({'success': True, 'data': serializer.data})
-
+    
 @extend_schema_view(
     list=extend_schema(tags=['Admin'], summary='[Admin] List all SACCOs'),
     create=extend_schema(tags=['Admin'], summary='[Admin] Create SACCO'),
@@ -175,11 +188,25 @@ class SACCOHoldingViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['total_shares', 'created_at']
 
     def get_queryset(self):
-        return SACCOMemberHolding.objects.filter(
+        queryset = SACCOMemberHolding.objects.filter(
             user=self.request.user,
             is_deleted=False
         ).select_related('sacco', 'share_class')
-    
+
+        # Filter by transferability
+        transferable = self.request.query_params.get('transferable')
+        if transferable is not None:
+            is_transferable = transferable.lower() == 'true'
+            queryset = queryset.filter(share_class__is_transferable=is_transferable)
+
+        # Filter by dividend eligibility
+        dividend_eligible = self.request.query_params.get('dividend_eligible')
+        if dividend_eligible is not None:
+            is_eligible = dividend_eligible.lower() == 'true'
+            queryset = queryset.filter(share_class__dividend_eligible=is_eligible)
+
+        return queryset
+        
     @action(detail=False, methods=['get'])
     def concentration_check(self, request):
         holdings = self.get_queryset().select_related('sacco')

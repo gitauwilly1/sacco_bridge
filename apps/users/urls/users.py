@@ -1,7 +1,7 @@
 
 from django.urls import path
 from apps.users.views import (
-    AccountDeletionView, AccountDeactivationView, ActiveSessionsView, AdminUserManagementView, AuditLogView, DataExportView, ProfilePictureUploadView, TransactionLimitsView, UserProfileView, UserProfileDetailView,
+    AccountDeletionView, AccountDeactivationView, ActiveSessionsView, AdminDeletionReviewView, AdminUserManagementView, AuditLogView, DataExportView, DeletionRequestView, ProfilePictureUploadView, TransactionLimitsView, UserProfileView, UserProfileDetailView,
     LoginHistoryView,PhoneNumberUpdateView,
 )
 
@@ -19,4 +19,7 @@ urlpatterns = [
     path('deactivate/', AccountDeactivationView.as_view(), name='user-deactivate'),
     path('admin/audit/', AuditLogView.as_view(), name='admin-audit-log'),
     path('limits/', TransactionLimitsView.as_view(), name='user-limits'),
+    path('deletion-requests/', DeletionRequestView.as_view(), name='deletion-requests'),
+    path('admin/deletion-requests/', AdminDeletionReviewView.as_view(), name='admin-deletion-requests'),
+    path('admin/deletion-requests/<uuid:pk>/review/', AdminDeletionReviewView.as_view(), name='admin-deletion-review'),
 ]

@@ -2,6 +2,7 @@ import uuid
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.contrib.contenttypes.models import ContentType
 
 
 class TimeStampedModel(models.Model):
@@ -117,3 +118,82 @@ class ContactMixin(models.Model):
 
     class Meta:
         abstract = True
+
+class DeletionRequest(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    requested_by = models.ForeignKey(
+        'users.User', on_delete=models.CASCADE, related_name='deletion_requests'
+    )
+
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE
+    )
+
+    object_id = models.UUIDField()
+
+    object_repr = models.CharField(
+        max_length=255,
+        help_text=_("String representation of the object to delete.")
+    )
+
+    reason = models.TextField(
+        blank=True, default='',
+        help_text=_("Reason for deletion request.")
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('PENDING', 'Pending Review'),
+            ('APPROVED', 'Approved'),
+            ('REJECTED', 'Rejected'),
+        ],
+        default='PENDING',
+        db_index=True,
+    )
+
+    reviewed_by = models.ForeignKey(
+        'users.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reviewed_deletions'
+    )
+
+    review_notes = models.TextField(blank=True, default='')
+
+    requested_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = _('Deletion Request')
+        verbose_name_plural = _('Deletion Requests')
+        ordering = ['-requested_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['requested_by', 'status']),
+        ]
+
+    def __str__(self):
+        return f"Delete {self.object_repr} - {self.status}"
+
+    def approve(self, reviewed_by, notes=''):
+        self.status = 'APPROVED'
+        self.reviewed_by = reviewed_by
+        self.review_notes = notes
+        self.reviewed_at = timezone.now()
+        self.save()
+
+        # Perform the actual deletion
+        try:
+            obj = self.content_type.get_object_for_this_type(id=self.object_id)
+            obj.delete()
+            return True
+        except Exception:
+            return False
+
+    def reject(self, reviewed_by, notes=''):
+        self.status = 'REJECTED'
+        self.reviewed_by = reviewed_by
+        self.review_notes = notes
+        self.reviewed_at = timezone.now()
+        self.save()
