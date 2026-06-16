@@ -16,7 +16,7 @@ from apps.core.exceptions import (
 from apps.core.pagination import SmallPagination
 from apps.core.mixins import SoftDeleteMixin
 from apps.chamas.models import (
-    Chama, ChamaMember, Contribution, Loan, LoanRepayment,
+    Chama, ChamaMember, ConstitutionAgreement, Contribution, Loan, LoanRepayment,
     Meeting, MeetingAttendance, MemberRole, LoanStatus,
     PaymentMethod, ContributionStatus,Poll, PollOption, Vote,
 )
@@ -211,6 +211,166 @@ class ChamaViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
                 ),
             },
         })
+    
+    @action(detail=True, methods=['post'])
+    def upload_constitution(self, request, pk=None):
+        chama = self.get_object()
+
+        # Check admin
+        try:
+            membership = chama.memberships.get(user=request.user, is_active=True)
+            is_admin = membership.role in [
+                MemberRole.CHAIRPERSON, MemberRole.TREASURER, MemberRole.SECRETARY,
+            ]
+        except ChamaMember.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_member', 'message': _('You are not a member.')}
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if not is_admin:
+            return Response({
+                'success': False,
+                'error': {'code': 'permission_denied', 'message': _('Only chama officials can upload.')}
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if 'constitution' not in request.FILES:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_file', 'message': _('No file uploaded.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        file = request.FILES['constitution']
+
+        if file.size > 10 * 1024 * 1024:
+            return Response({
+                'success': False,
+                'error': {'code': 'file_too_large', 'message': _('File must be under 10MB.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_types = ['application/pdf', 'application/msword',
+                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+        if file.content_type not in allowed_types:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_format', 'message': _('Only PDF and DOC/DOCX files accepted.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        version = request.data.get('version', '1.0')
+
+        if chama.constitution:
+            chama.constitution.delete(save=False)
+
+        chama.constitution = file
+        chama.constitution_version = version
+        chama.constitution_uploaded_at = timezone.now()
+        chama.save(update_fields=['constitution', 'constitution_version', 'constitution_uploaded_at'])
+
+        return Response({
+            'success': True,
+            'data': {
+                'constitution_url': chama.constitution.url if chama.constitution else None,
+                'version': version,
+                'uploaded_at': chama.constitution_uploaded_at.isoformat(),
+            },
+            'message': _('Constitution uploaded.'),
+        })
+
+    @action(detail=True, methods=['post'])
+    def agree_constitution(self, request, pk=None):
+        chama = self.get_object()
+
+        if not chama.constitution:
+            return Response({
+                'success': False,
+                'error': {'code': 'no_constitution', 'message': _('No constitution uploaded yet.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            member = chama.memberships.get(user=request.user, is_active=True)
+        except ChamaMember.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_member', 'message': _('You are not a member.')}
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Check if already agreed to this version
+        existing = ConstitutionAgreement.objects.filter(
+            member=member,
+            version=chama.constitution_version,
+        ).first()
+
+        if existing:
+            return Response({
+                'success': True,
+                'data': {
+                    'already_agreed': True,
+                    'agreed_at': existing.agreed_at.isoformat(),
+                },
+                'message': _('You have already agreed to this version.'),
+            })
+
+        agreement = ConstitutionAgreement.objects.create(
+            member=member,
+            chama=chama,
+            version=chama.constitution_version,
+            ip_address=self._get_client_ip(request),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        )
+
+        return Response({
+            'success': True,
+            'data': {
+                'agreed_at': agreement.agreed_at.isoformat(),
+                'version': chama.constitution_version,
+            },
+            'message': _('Constitution agreed.'),
+        })
+
+    def _get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR', '')
+
+    @action(detail=True, methods=['get'])
+    def constitution_status(self, request, pk=None):
+        chama = self.get_object()
+
+        if not chama.constitution:
+            return Response({
+                'success': True,
+                'data': {'has_constitution': False},
+            })
+
+        members = chama.memberships.filter(is_active=True).select_related('user')
+        member_status = []
+
+        for m in members:
+            agreed = ConstitutionAgreement.objects.filter(
+                member=m,
+                version=chama.constitution_version,
+            ).exists()
+            member_status.append({
+                'member_id': str(m.id),
+                'member_name': m.user.get_full_name(),
+                'has_agreed': agreed,
+            })
+
+        total = len(member_status)
+        agreed_count = sum(1 for ms in member_status if ms['has_agreed'])
+
+        return Response({
+            'success': True,
+            'data': {
+                'has_constitution': True,
+                'version': chama.constitution_version,
+                'total_members': total,
+                'agreed_count': agreed_count,
+                'pending_count': total - agreed_count,
+                'members': member_status,
+            },
+        })
 
 
 @extend_schema_view(
@@ -350,6 +510,18 @@ class LoanViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         chama = Chama.objects.get(id=chama_id)
 
         borrower = ChamaMember.objects.get(chama=chama, user=self.request.user)
+
+        # Check constitution agreement
+        if chama.constitution:
+            has_agreed = ConstitutionAgreement.objects.filter(
+                member=borrower,
+                version=chama.constitution_version,
+            ).exists()
+
+            if not has_agreed:
+                raise PermissionDeniedError(
+                    _('You must agree to the chama constitution before applying for a loan.')
+                )
 
         max_loan = borrower.total_contributions * chama.max_loan_multiple
         if serializer.validated_data['principal'] > max_loan:

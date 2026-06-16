@@ -303,6 +303,20 @@ class Chama(BaseModel):
         help_text=_("When the health score was last calculated.")
     )
 
+    constitution = models.FileField(
+        upload_to='chama_constitutions/%Y/%m/',
+        null=True, blank=True,
+        help_text=_("Chama constitution document.")
+    )
+    constitution_version = models.CharField(
+        max_length=20, blank=True, default='1.0',
+        help_text=_("Version of the uploaded constitution.")
+    )
+    constitution_uploaded_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text=_("When the constitution was uploaded.")
+    )
+
     class Meta:
         verbose_name = _('Chama')
         verbose_name_plural = _('Chamas')
@@ -1288,3 +1302,33 @@ class Vote(models.Model):
 
     def __str__(self):
         return f"{self.voter.user.get_full_name()} voted on {self.poll.title}"
+
+
+class ConstitutionAgreement(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    member = models.ForeignKey(
+        ChamaMember, on_delete=models.CASCADE, related_name='constitution_agreements'
+    )
+
+    chama = models.ForeignKey(
+        Chama, on_delete=models.CASCADE, related_name='constitution_agreements'
+    )
+
+    version = models.CharField(max_length=20)
+
+    agreed_at = models.DateTimeField(auto_now_add=True)
+
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    user_agent = models.TextField(blank=True, default='')
+
+    class Meta:
+        verbose_name = _('Constitution Agreement')
+        verbose_name_plural = _('Constitution Agreements')
+        unique_together = ['member', 'version']
+        ordering = ['-agreed_at']
+
+    def __str__(self):
+        return f"{self.member.user.get_full_name()} agreed to v{self.version}"
