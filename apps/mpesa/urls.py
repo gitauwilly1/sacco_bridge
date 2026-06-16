@@ -1,7 +1,10 @@
 from django.urls import path
+
 from apps.mpesa.views import (
-    StkPushView, mpesa_callback,
-    MpesaTransactionView, MpesaTransactionDetailView,
+    MpesaTransactionDetailView,
+    MpesaTransactionView,
+    StkPushView,
+    mpesa_callback,
 )
 
 urlpatterns = [

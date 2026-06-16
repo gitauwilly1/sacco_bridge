@@ -1,6 +1,8 @@
 import logging
+
 from celery import shared_task
 from django.utils import timezone
+
 from apps.notifications.services import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -14,7 +16,13 @@ logger = logging.getLogger(__name__)
     queue='push_notifications',
 )
 def deliver_push(self, notification_id, user_id):
-    from apps.notifications.models import Notification, NotificationDelivery, DeliveryStatus, NotificationChannel, UserDevice
+    from apps.notifications.models import (
+        DeliveryStatus,
+        Notification,
+        NotificationChannel,
+        NotificationDelivery,
+        UserDevice,
+    )
     from apps.notifications.services import FirebaseService
 
     try:
@@ -84,7 +92,12 @@ def deliver_push(self, notification_id, user_id):
     queue='sms_notifications',
 )
 def deliver_sms(self, notification_id, user_id, phone_number):
-    from apps.notifications.models import Notification, NotificationDelivery, DeliveryStatus, NotificationChannel
+    from apps.notifications.models import (
+        DeliveryStatus,
+        Notification,
+        NotificationChannel,
+        NotificationDelivery,
+    )
     from apps.notifications.services import SMSService
 
     try:
@@ -132,7 +145,12 @@ def deliver_sms(self, notification_id, user_id, phone_number):
     queue='email_notifications',
 )
 def deliver_email(self, notification_id, user_id, email):
-    from apps.notifications.models import Notification, NotificationDelivery, DeliveryStatus, NotificationChannel
+    from apps.notifications.models import (
+        DeliveryStatus,
+        Notification,
+        NotificationChannel,
+        NotificationDelivery,
+    )
     from apps.notifications.services import EmailService
 
     try:
@@ -180,7 +198,7 @@ def deliver_email(self, notification_id, user_id, email):
     default_retry_delay=600,
 )
 def retry_failed_deliveries(self):
-    from apps.notifications.models import NotificationDelivery, DeliveryStatus
+    from apps.notifications.models import DeliveryStatus, NotificationDelivery
 
     MAX_RETRIES = 3
     BATCH_SIZE = 50
@@ -223,9 +241,9 @@ def retry_failed_deliveries(self):
 )
 def queue_notification(self, user_id, category, title, body, priority='MEDIUM',
     template_name=None, action_url='', action_text='', data=None):
-    from apps.users.models import User
-    from apps.notifications.services import NotificationService
     from apps.notifications.models import NotificationPriority
+    from apps.notifications.services import NotificationService
+    from apps.users.models import User
 
     try:
         user = User.objects.get(id=user_id, is_active=True)
@@ -266,8 +284,8 @@ def queue_notification(self, user_id, category, title, body, priority='MEDIUM',
 )
 def queue_bulk_notification(self, user_ids, category, title, body, priority='MEDIUM',
     action_url='', action_text='', data=None):
-    from apps.users.models import User
     from apps.notifications.models import NotificationPriority
+    from apps.users.models import User
 
     CHUNK_SIZE = 100
     processed = 0

@@ -8,4 +8,4 @@ class AnalyticsConfig(AppConfig):
     label = 'analytics'
 
     def ready(self):
-        import apps.analytics.signals
+        pass

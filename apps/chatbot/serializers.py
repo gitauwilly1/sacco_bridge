@@ -1,7 +1,6 @@
 from rest_framework import serializers
-from apps.chatbot.models import (
-    ChatSession, ChatMessage, KnowledgeArticle
-)
+
+from apps.chatbot.models import ChatMessage, ChatSession, KnowledgeArticle
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):

@@ -5,23 +5,36 @@ User = get_user_model()
 
 # Chama models
 from apps.chamas.models import (
-    Chama, ChamaMember, Contribution, Loan, LoanRepayment,
-    Meeting, MeetingAttendance,
+    Chama,
+    ChamaMember,
+    Contribution,
+    Loan,
+    LoanRepayment,
+    Meeting,
+    MeetingAttendance,
 )
 
 # Investment models
 from apps.investments.models import (
-    SACCO, SACCOShareClass, SACCOMemberHolding,
-    LiquidityRequest, BuyerInterest, Connection, Offer,
+    SACCO,
+    BuyerInterest,
+    Connection,
+    LiquidityRequest,
+    Offer,
+    SACCOMemberHolding,
+    SACCOShareClass,
 )
 
 # Transaction models
 from apps.transactions.models import (
-    SettlementIntent, SettlementEvent, LedgerEntry, SettlementReversal,
+    LedgerEntry,
+    SettlementEvent,
+    SettlementIntent,
+    SettlementReversal,
 )
 
 # User models
-from apps.users.models import UserRole, UserProfile
+from apps.users.models import UserProfile, UserRole
 
 # Register all models
 auditlog.register(User, exclude_fields=['last_login', 'password'])

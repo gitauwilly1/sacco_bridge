@@ -8,4 +8,4 @@ class EscrowConfig(AppConfig):
     label = 'escrow'
 
     def ready(self):
-        import apps.escrow.signals
+        pass

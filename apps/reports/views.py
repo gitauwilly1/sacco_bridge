@@ -1,16 +1,17 @@
 from django.http import FileResponse
-from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status, permissions
+from drf_spectacular.utils import extend_schema
+from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema
 
 from apps.reports.models import ReportRequest, ReportStatus
 from apps.reports.serializers import (
-    ReportRequestSerializer, ReportRequestCreateSerializer,
+    ReportRequestCreateSerializer,
+    ReportRequestSerializer,
 )
 from apps.reports.tasks import generate_report
+
 
 class ReportRequestView(APIView):
 

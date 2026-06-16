@@ -1,14 +1,15 @@
+from django.utils.translation import gettext_lazy as _
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.utils.translation import gettext_lazy as _
 
-from apps.webhooks.models import WebhookSubscription, WebhookDelivery
+from apps.users.permissions import IsPlatformStaff
+from apps.webhooks.models import WebhookDelivery, WebhookSubscription
 from apps.webhooks.serializers import (
-    WebhookSubscriptionSerializer, WebhookDeliverySerializer,
+    WebhookDeliverySerializer,
+    WebhookSubscriptionSerializer,
 )
 from apps.webhooks.tasks import deliver_webhook
-from apps.users.permissions import IsPlatformStaff
 
 
 class WebhookSubscriptionViewSet(viewsets.ModelViewSet):

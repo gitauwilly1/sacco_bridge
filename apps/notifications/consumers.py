@@ -1,5 +1,6 @@
 import json
 import logging
+
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 logger = logging.getLogger(__name__)
@@ -67,8 +68,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         }))
 
     async def mark_as_read(self, notification_id):
-        from apps.notifications.models import Notification
         from channels.db import database_sync_to_async
+
+        from apps.notifications.models import Notification
 
         @database_sync_to_async
         def _mark(uid, nid):

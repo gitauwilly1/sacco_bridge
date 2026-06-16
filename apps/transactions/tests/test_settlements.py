@@ -1,10 +1,7 @@
 import pytest
-from django.utils import timezone
 
-from apps.transactions.models import (
-    SettlementIntent, SettlementState, SettlementEventTrigger
-)
 from apps.core.tests.factories import SettlementIntentFactory
+from apps.transactions.models import SettlementEventTrigger, SettlementState
 
 
 @pytest.mark.django_db

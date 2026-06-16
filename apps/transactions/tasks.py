@@ -1,12 +1,15 @@
 import logging
+
 from celery import shared_task
-from django.utils import timezone
 from django.db import transaction as db_transaction
+from django.utils import timezone
 
 from apps.transactions.models import (
-    SettlementIntent, SettlementState, SettlementEventTrigger
+    SettlementEventTrigger,
+    SettlementIntent,
+    SettlementState,
 )
-from apps.transactions.services import RecoveryService, SettlementService
+from apps.transactions.services import RecoveryService
 
 logger = logging.getLogger(__name__)
 

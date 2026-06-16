@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from apps.notifications.models import NotificationDelivery, DeliveryStatus
+
+from apps.notifications.models import DeliveryStatus, NotificationDelivery
 
 
 class Command(BaseCommand):
@@ -68,7 +69,9 @@ class Command(BaseCommand):
         replay_ids = options.get('replay', [])
         if replay_ids:
             from apps.notifications.tasks import (
-                deliver_push, deliver_sms, deliver_email
+                deliver_email,
+                deliver_push,
+                deliver_sms,
             )
             for did in replay_ids:
                 try:

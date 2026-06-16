@@ -1,7 +1,8 @@
 import logging
 from decimal import Decimal
+
+from django.db.models import Sum
 from django.utils import timezone
-from django.db.models import Avg, Count, Sum, Q
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,5 @@
 import logging
+
 import pyotp
 import qrcode
 import qrcode.image.svg
@@ -9,7 +10,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.core.utils import generate_otp, encrypt_data, decrypt_data
+from apps.core.utils import decrypt_data, encrypt_data, generate_otp
 from apps.users.models import User
 
 logger = logging.getLogger(__name__)
@@ -189,8 +190,8 @@ class AuthenticationService:
     @staticmethod
     def send_password_reset_email(user):
         from django.contrib.auth.tokens import default_token_generator
-        from django.utils.http import urlsafe_base64_encode
         from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
 
         try:
             token = default_token_generator.make_token(user)
@@ -299,8 +300,8 @@ class TwoFactorService:
 
     @staticmethod
     def generate_backup_codes():
-        import secrets
         import hashlib
+        import secrets
         
         codes = []
         plain_codes = []
@@ -373,8 +374,8 @@ class TwoFactorService:
     @staticmethod
     def send_2fa_recovery_email(user):
         from django.contrib.auth.tokens import default_token_generator
-        from django.utils.http import urlsafe_base64_encode
         from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
 
         try:
             token = default_token_generator.make_token(user)

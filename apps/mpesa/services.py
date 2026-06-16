@@ -1,12 +1,12 @@
-import logging
 import base64
-import requests
+import logging
 from datetime import datetime
+
+import requests
 from django.conf import settings
-from django.utils import timezone
 from django.core.cache import cache
 
-from apps.mpesa.models import MpesaTransaction, MpesaTransactionStatus
+from apps.mpesa.models import MpesaTransaction
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,7 @@ class MpesaService:
         try:
             stk_callback = callback_data.get('Body', {}).get('stkCallback', {})
 
-            merchant_request_id = stk_callback.get('MerchantRequestID', '')
+            stk_callback.get('MerchantRequestID', '')
             checkout_request_id = stk_callback.get('CheckoutRequestID', '')
             result_code = stk_callback.get('ResultCode', 1)
             result_desc = stk_callback.get('ResultDesc', '')
@@ -225,16 +225,14 @@ class MpesaService:
                 items = callback_metadata.get('Item', [])
 
                 mpesa_receipt = ''
-                amount = None
-                phone = ''
 
                 for item in items:
                     if item.get('Name') == 'MpesaReceiptNumber':
                         mpesa_receipt = item.get('Value', '')
                     elif item.get('Name') == 'Amount':
-                        amount = item.get('Value')
+                        item.get('Value')
                     elif item.get('Name') == 'PhoneNumber':
-                        phone = item.get('Value')
+                        item.get('Value')
 
                 transaction.mark_completed(mpesa_receipt, callback_data)
 

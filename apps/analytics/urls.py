@@ -1,13 +1,16 @@
 from django.urls import path
+
 from apps.analytics.views import (
-    PlatformDashboardView, UserDashboardView,
-    ChamaAnalyticsView, SACCOMarketView,
-    RefreshAnalyticsView,
     AdminAnalyticsView,
+    AdminExportCSVView,
+    AdminHealthCheckView,
     AdminSettlementListView,
     AdminTransactionVolumeView,
-    AdminHealthCheckView,
-    AdminExportCSVView,
+    ChamaAnalyticsView,
+    PlatformDashboardView,
+    RefreshAnalyticsView,
+    SACCOMarketView,
+    UserDashboardView,
 )
 
 urlpatterns = [

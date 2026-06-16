@@ -1,5 +1,6 @@
 from django.urls import path
-from apps.activity.views import UserActivityFeedView, ChamaActivityFeedView
+
+from apps.activity.views import ChamaActivityFeedView, UserActivityFeedView
 
 urlpatterns = [
     path('', UserActivityFeedView.as_view(), name='activity-feed'),

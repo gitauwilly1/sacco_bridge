@@ -1,25 +1,21 @@
-from rest_framework import status, permissions
-from rest_framework.decorators import action
+from decimal import Decimal
+
+from django.conf import settings
+from django.db.models import Count
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema
+from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
-from drf_spectacular.utils import extend_schema
-from django.utils.translation import gettext_lazy as _
 
-from apps.analytics.services import DashboardService, AnalyticsAggregationService
-from apps.analytics.models import (
-    PlatformMetric, ChamaAnalytics, SACCOMarketAnalytics,
-    ScheduledReport, ReportGeneration
-)
+from apps.analytics.models import SACCOMarketAnalytics
 from apps.analytics.serializers import (
-    PlatformMetricSerializer, ChamaAnalyticsSerializer,
-    SACCOMarketAnalyticsSerializer, ScheduledReportSerializer,
-    ReportGenerationSerializer,
+    ChamaAnalyticsSerializer,
+    PlatformMetricSerializer,
+    SACCOMarketAnalyticsSerializer,
 )
-from decimal import Decimal
-from django.conf import settings
-from django.db.models import Sum, Count
-from django.utils import timezone
+from apps.analytics.services import AnalyticsAggregationService, DashboardService
 from apps.users.permissions import IsPlatformStaff
 
 
@@ -95,6 +91,7 @@ class SACCOMarketView(APIView):
     @extend_schema(tags=['Analytics'], summary='Get SACCO market analytics')
     def get(self, request, sacco_id):
         from django.utils import timezone
+
         from apps.investments.models import SACCO
 
         try:
@@ -145,12 +142,13 @@ class AdminAnalyticsView(APIView):
 
     @extend_schema(tags=['Admin'], summary='[Admin] Platform overview stats')
     def get(self, request):
-        from apps.users.models import User
+        from django.db.models import Sum
+
         from apps.chamas.models import Chama, Contribution, Loan
         from apps.investments.models import SACCO, LiquidityRequest
-        from apps.transactions.models import SettlementIntent, SettlementState
         from apps.mpesa.models import MpesaTransaction, MpesaTransactionStatus
-        from django.db.models import Sum, Count
+        from apps.transactions.models import SettlementIntent, SettlementState
+        from apps.users.models import User
 
         today = timezone.now().date()
         this_month = today.replace(day=1)
@@ -248,8 +246,8 @@ class AdminSettlementListView(APIView):
 
     @extend_schema(tags=['Admin'], summary='[Admin] List all settlements')
     def get(self, request):
-        from apps.transactions.models import SettlementIntent
         from apps.core.pagination import SmallPagination
+        from apps.transactions.models import SettlementIntent
 
         state_filter = request.query_params.get('state')
         settlements = SettlementIntent.objects.filter(is_deleted=False).order_by('-created_at')
@@ -283,9 +281,10 @@ class AdminTransactionVolumeView(APIView):
 
     @extend_schema(tags=['Admin'], summary='[Admin] Transaction volume trends')
     def get(self, request):
-        from apps.transactions.models import SettlementIntent, SettlementState
-        from django.db.models.functions import TruncDate
         from django.db.models import Sum
+        from django.db.models.functions import TruncDate
+
+        from apps.transactions.models import SettlementIntent, SettlementState
 
         days = int(request.query_params.get('days', 30))
         start_date = timezone.now().date() - timezone.timedelta(days=days)
@@ -322,8 +321,8 @@ class AdminHealthCheckView(APIView):
 
     @extend_schema(tags=['Admin'], summary='[Admin] System health check')
     def get(self, request):
-        from django.db import connections
         from django.core.cache import cache
+        from django.db import connections
         from redis.exceptions import RedisError
 
         health = {
@@ -404,8 +403,7 @@ class AdminExportCSVView(APIView):
 
     @extend_schema(tags=['Admin'], summary='[Admin] Export data as CSV')
     def get(self, request):
-        import csv
-        from django.http import HttpResponse
+        pass
 
         export_type = request.query_params.get('type', 'users')
         date_from = request.query_params.get('from')
@@ -429,9 +427,11 @@ class AdminExportCSVView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
     def _export_users(self, date_from, date_to):
-        from apps.users.models import User
         import csv
+
         from django.http import HttpResponse
+
+        from apps.users.models import User
 
         queryset = User.objects.filter(is_active=True).order_by('-date_joined')
 
@@ -469,9 +469,11 @@ class AdminExportCSVView(APIView):
         return response
 
     def _export_chamas(self, date_from, date_to):
-        from apps.chamas.models import Chama
         import csv
+
         from django.http import HttpResponse
+
+        from apps.chamas.models import Chama
 
         queryset = Chama.objects.filter(is_deleted=False).order_by('-created_at')
 
@@ -507,9 +509,11 @@ class AdminExportCSVView(APIView):
         return response
 
     def _export_settlements(self, date_from, date_to):
-        from apps.transactions.models import SettlementIntent
         import csv
+
         from django.http import HttpResponse
+
+        from apps.transactions.models import SettlementIntent
 
         queryset = SettlementIntent.objects.filter(is_deleted=False).order_by('-created_at')
 
@@ -546,9 +550,11 @@ class AdminExportCSVView(APIView):
         return response
 
     def _export_mpesa_transactions(self, date_from, date_to):
-        from apps.mpesa.models import MpesaTransaction
         import csv
+
         from django.http import HttpResponse
+
+        from apps.mpesa.models import MpesaTransaction
 
         queryset = MpesaTransaction.objects.filter(is_deleted=False).order_by('-created_at')
 

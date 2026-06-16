@@ -1,26 +1,31 @@
-from decimal import Decimal
 import logging
+from decimal import Decimal
+
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status, permissions, viewsets
-from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework.views import APIView
 
-from apps.core.exceptions import PermissionDeniedError
-from apps.core.pagination import SmallPagination
 from apps.core.mixins import SoftDeleteMixin
+from apps.core.pagination import SmallPagination
 from apps.transactions.models import (
-    SettlementIntent, SettlementEvent, LedgerEntry,
-    SettlementReversal, SettlementState, DisputeResolutionType,
-    Dispute, DisputeReason, DisputeStatus
+    Dispute,
+    DisputeResolutionType,
+    LedgerEntry,
+    SettlementIntent,
+    SettlementState,
 )
 from apps.transactions.serializers import (
-    SettlementIntentSerializer, SettlementIntentCreateSerializer,
-    SettlementEventSerializer, LedgerEntrySerializer,
-    SettlementReversalSerializer, DisputeResolutionSerializer,
-    DisputeSerializer, DisputeCreateSerializer
+    DisputeCreateSerializer,
+    DisputeResolutionSerializer,
+    DisputeSerializer,
+    LedgerEntrySerializer,
+    SettlementEventSerializer,
+    SettlementIntentCreateSerializer,
+    SettlementIntentSerializer,
 )
 from apps.transactions.services import SettlementService
 from apps.users.permissions import IsPlatformStaff
@@ -382,8 +387,11 @@ class DisputeViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
         # Notify both parties of resolution
         try:
+            from apps.notifications.models import (
+                NotificationCategory,
+                NotificationPriority,
+            )
             from apps.notifications.services import NotificationService
-            from apps.notifications.models import NotificationCategory, NotificationPriority
 
             for user in [settlement.buyer, settlement.seller]:
                 NotificationService.create_notification(

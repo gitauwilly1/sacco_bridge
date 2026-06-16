@@ -1,12 +1,12 @@
 import uuid
+from asyncio.log import logger
 from decimal import Decimal
+
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.core.validators import MinValueValidator
-from asyncio.log import logger
 
-from apps.core.models import BaseModel, TimeStampedModel
+from apps.core.models import BaseModel
 from apps.core.validators import validate_positive_amount, validate_share_quantity
 
 
@@ -400,8 +400,8 @@ class SettlementIntent(BaseModel):
 
         # Broadcast WebSocket update
         try:
-            from channels.layers import get_channel_layer
             from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
 
             channel_layer = get_channel_layer()
             if channel_layer:

@@ -1,13 +1,23 @@
 from django.urls import path
+
 from apps.users.views import (
-    AvailabilityCheckView, PasswordStrengthView, RegistrationView, LoginView, TwoFactorSetupView,
-    EmailVerificationView, PhoneVerificationView,
-    ResendVerificationView, GoogleAuthView,
-    TokenRefreshViewCustom, LogoutView,
-    PasswordChangeView, PasswordResetRequestView,
-    PasswordResetConfirmView,TwoFactorRecoveryRequestView,
-    TwoFactorRecoveryConfirmView,
+    AvailabilityCheckView,
+    EmailVerificationView,
+    GoogleAuthView,
+    LoginView,
+    LogoutView,
+    PasswordChangeView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
+    PasswordStrengthView,
+    PhoneVerificationView,
+    RegistrationView,
+    ResendVerificationView,
+    TokenRefreshViewCustom,
     TwoFactorDisableWithBackupView,
+    TwoFactorRecoveryConfirmView,
+    TwoFactorRecoveryRequestView,
+    TwoFactorSetupView,
 )
 
 urlpatterns = [

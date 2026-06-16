@@ -1,12 +1,15 @@
+from decimal import Decimal
+
 import pytest
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
-from decimal import Decimal
 
 from apps.core.tests.factories import (
-    UserFactory, ChamaFactory, ChamaMemberFactory,
-    ContributionFactory, LoanFactory
+    ChamaFactory,
+    ChamaMemberFactory,
+    LoanFactory,
+    UserFactory,
 )
 
 
@@ -231,7 +234,8 @@ class TestPermissions:
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_platform_staff_bypass_verification(self):
-        from apps.users.models import UserRole, Role as GlobalRole
+        from apps.users.models import Role as GlobalRole
+        from apps.users.models import UserRole
         
         user = UserFactory(email_verified=False, phone_verified=False)
         UserRole.objects.create(user=user, role=GlobalRole.PLATFORM_ADMIN)

@@ -8,4 +8,4 @@ class WebhooksConfig(AppConfig):
     label = 'webhooks'
 
     def ready(self):
-        import apps.webhooks.signals
+        pass

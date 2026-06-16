@@ -1,17 +1,18 @@
 import logging
-from decimal import Decimal
+
+from django.db import models as django_models
 from django.db import transaction as db_transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from django.db import models as django_models
-from apps.core.utils import (
-    generate_idempotency_key, calculate_settlement_fee
-)
+from apps.core.utils import calculate_settlement_fee, generate_idempotency_key
 from apps.transactions.models import (
-    SettlementIntent, SettlementEvent, LedgerEntry,
-    SettlementReversal, SettlementState, SettlementEventTrigger,
-    DisputeResolutionType
+    DisputeResolutionType,
+    LedgerEntry,
+    SettlementEventTrigger,
+    SettlementIntent,
+    SettlementReversal,
+    SettlementState,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,8 +157,8 @@ class SettlementService:
             )
 
             try:
-                from apps.receipts.services import ReceiptPDFGenerator
                 from apps.receipts.models import ReceiptType
+                from apps.receipts.services import ReceiptPDFGenerator
 
                 # Generate receipt for buyer
                 ReceiptPDFGenerator.generate_settlement_receipt(
@@ -184,7 +185,10 @@ class SettlementService:
             )
 
             if intent.liquidity_request_id:
-                from apps.investments.models import LiquidityRequest, LiquidityRequestStatus
+                from apps.investments.models import (
+                    LiquidityRequest,
+                    LiquidityRequestStatus,
+                )
                 LiquidityRequest.objects.filter(
                     id=intent.liquidity_request_id
                 ).update(status=LiquidityRequestStatus.SETTLED)
@@ -287,7 +291,7 @@ class RecoveryService:
 
     @staticmethod
     def find_stuck_settlements():
-        from django.db.models import Q
+        pass
 
         stuck = []
         for state, timeout_seconds in RecoveryService.STATE_TIMEOUTS.items():

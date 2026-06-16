@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from apps.reports.models import ReportRequest, ReportType, ReportFormat
+
+from apps.reports.models import ReportFormat, ReportRequest, ReportType
 
 
 class ReportRequestSerializer(serializers.ModelSerializer):

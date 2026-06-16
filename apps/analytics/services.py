@@ -1,13 +1,11 @@
 import logging
 from decimal import Decimal
-from django.db.models import Sum, Count, Avg, Q
-from django.utils import timezone
-from django.core.cache import cache
 
-from apps.analytics.models import (
-    PlatformMetric, ChamaAnalytics, SACCOMarketAnalytics,
-    ScheduledReport, ReportGeneration
-)
+from django.core.cache import cache
+from django.db.models import Q, Sum
+from django.utils import timezone
+
+from apps.analytics.models import ChamaAnalytics, PlatformMetric, SACCOMarketAnalytics
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +16,10 @@ class AnalyticsAggregationService:
         if target_date is None:
             target_date = timezone.now().date()
 
-        from apps.users.models import User
         from apps.chamas.models import Chama, ChamaMember, Contribution, Loan
-        from apps.investments.models import LiquidityRequest, Connection
+        from apps.investments.models import Connection, LiquidityRequest
         from apps.transactions.models import SettlementIntent, SettlementState
+        from apps.users.models import User
 
         total_users = User.objects.filter(is_active=True).count()
         new_users = User.objects.filter(
@@ -169,8 +167,8 @@ class AnalyticsAggregationService:
         if target_date is None:
             target_date = timezone.now().date()
 
+        from apps.investments.models import LiquidityRequest
         from apps.transactions.models import SettlementIntent, SettlementState
-        from apps.investments.models import Offer, LiquidityRequest
 
         completed = SettlementIntent.objects.filter(
             seller_sacco_id=sacco.id,
@@ -265,10 +263,14 @@ class DashboardService:
         data = cache.get(cache_key)
 
         if data is None:
-            from apps.chamas.models import ChamaMember, Contribution, Loan
-            from apps.investments.models import SACCOMemberHolding, LiquidityRequest, Connection
-            from apps.transactions.models import SettlementIntent, SettlementState
+            from apps.chamas.models import ChamaMember
+            from apps.investments.models import (
+                Connection,
+                LiquidityRequest,
+                SACCOMemberHolding,
+            )
             from apps.notifications.services import NotificationService
+            from apps.transactions.models import SettlementIntent
 
             memberships = ChamaMember.objects.filter(
                 user=user, is_active=True

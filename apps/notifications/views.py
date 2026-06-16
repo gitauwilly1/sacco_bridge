@@ -1,18 +1,16 @@
-from rest_framework import status, permissions, viewsets
+from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, extend_schema_view
-from django.utils.translation import gettext_lazy as _
 
-from apps.core.pagination import SmallPagination
 from apps.core.mixins import SoftDeleteMixin
-from apps.notifications.models import (
-    Notification, UserDevice, NotificationPreference,
-    NotificationCategory
-)
+from apps.core.pagination import SmallPagination
+from apps.notifications.models import Notification, NotificationPreference, UserDevice
 from apps.notifications.serializers import (
-    NotificationSerializer, UserDeviceSerializer,
     NotificationPreferenceSerializer,
+    NotificationSerializer,
+    UserDeviceSerializer,
 )
 from apps.notifications.services import NotificationService
 

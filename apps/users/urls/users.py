@@ -1,8 +1,21 @@
 
 from django.urls import path
+
 from apps.users.views import (
-    AccountDeletionView, AccountDeactivationView, ActiveSessionsView, AdminDeletionReviewView, AdminUserManagementView, AuditLogView, DataExportView, DeletionRequestView, ProfilePictureUploadView, TransactionLimitsView, UserProfileView, UserProfileDetailView,
-    LoginHistoryView,PhoneNumberUpdateView,
+    AccountDeactivationView,
+    AccountDeletionView,
+    ActiveSessionsView,
+    AdminDeletionReviewView,
+    AdminUserManagementView,
+    AuditLogView,
+    DataExportView,
+    DeletionRequestView,
+    LoginHistoryView,
+    PhoneNumberUpdateView,
+    ProfilePictureUploadView,
+    TransactionLimitsView,
+    UserProfileDetailView,
+    UserProfileView,
 )
 
 urlpatterns = [

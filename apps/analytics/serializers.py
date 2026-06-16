@@ -1,7 +1,11 @@
 from rest_framework import serializers
+
 from apps.analytics.models import (
-    PlatformMetric, ChamaAnalytics, SACCOMarketAnalytics,
-    ScheduledReport, ReportGeneration
+    ChamaAnalytics,
+    PlatformMetric,
+    ReportGeneration,
+    SACCOMarketAnalytics,
+    ScheduledReport,
 )
 
 

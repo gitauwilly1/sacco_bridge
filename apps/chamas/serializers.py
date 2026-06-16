@@ -1,14 +1,22 @@
 from decimal import Decimal
-from django.utils import timezone
+
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from apps.core.serializers import BaseSerializer, DynamicFieldsMixin
 from apps.chamas.models import (
-    Chama, ChamaMember, Contribution, Loan, LoanRepayment,
-    Meeting, MeetingAttendance, Payout, PayoutRecipient,
-    Poll, PollOption, Vote
+    Chama,
+    ChamaMember,
+    Contribution,
+    Loan,
+    LoanRepayment,
+    Meeting,
+    MeetingAttendance,
+    Payout,
+    PayoutRecipient,
+    Poll,
+    PollOption,
 )
+from apps.core.serializers import BaseSerializer, DynamicFieldsMixin
 
 
 class ChamaSerializer(BaseSerializer, DynamicFieldsMixin):

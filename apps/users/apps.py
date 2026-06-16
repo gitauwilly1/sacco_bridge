@@ -8,4 +8,4 @@ class UsersConfig(AppConfig):
     label = 'users'
 
     def ready(self):
-        import apps.users.signals
+        pass

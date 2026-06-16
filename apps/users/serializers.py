@@ -1,16 +1,16 @@
 import logging
+
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.core.serializers import BaseSerializer, DynamicFieldsMixin, ReCaptchaField
 from apps.core.utils import generate_otp
-from apps.users.models import User, UserProfile, UserRole, Role, LoginHistory, IDVerificationStatus
+from apps.users.models import LoginHistory, User, UserProfile
 
 logger = logging.getLogger(__name__)
 User = get_user_model()

@@ -1,7 +1,9 @@
 from django.urls import path
+
 from apps.notifications.views import (
-    NotificationViewSet, DeviceViewSet,
+    DeviceViewSet,
     NotificationPreferenceViewSet,
+    NotificationViewSet,
 )
 
 urlpatterns = [

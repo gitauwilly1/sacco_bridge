@@ -1,8 +1,16 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import SimpleRouter
+
 from apps.chamas.views import (
-    AdminChamaManagementView, BulkInviteMembersView, ChamaViewSet, ChamaMemberViewSet, ContributionViewSet,
-    LoanViewSet, MeetingViewSet,BulkContributionView, PollViewSet,
+    AdminChamaManagementView,
+    BulkContributionView,
+    BulkInviteMembersView,
+    ChamaMemberViewSet,
+    ChamaViewSet,
+    ContributionViewSet,
+    LoanViewSet,
+    MeetingViewSet,
+    PollViewSet,
 )
 
 router = SimpleRouter()

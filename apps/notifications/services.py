@@ -1,16 +1,20 @@
 import logging
+
 import firebase_admin
-from firebase_admin import credentials, messaging
 from django.conf import settings
 from django.core.mail import send_mail
-from django.template.loader import render_to_string
 from django.utils import timezone
-from django.utils.translation import gettext_lazy as _
+from firebase_admin import credentials, messaging
 
 from apps.notifications.models import (
-    Notification, NotificationDelivery, NotificationTemplate,
-    NotificationChannel, NotificationCategory, NotificationPriority,
-    DeliveryStatus, UserDevice, NotificationPreference
+    DeliveryStatus,
+    Notification,
+    NotificationChannel,
+    NotificationDelivery,
+    NotificationPreference,
+    NotificationPriority,
+    NotificationTemplate,
+    UserDevice,
 )
 
 logger = logging.getLogger(__name__)
@@ -233,8 +237,8 @@ class NotificationService:
             notification.save(update_fields=['channels_sent'])
 
         try:
-            from channels.layers import get_channel_layer
             from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
 
             channel_layer = get_channel_layer()
             if channel_layer:
@@ -363,7 +367,10 @@ class NotificationService:
 
         # Dispatch to per-channel Celery task
         from apps.notifications.tasks import (
-            deliver_push, deliver_sms, deliver_email, deliver_in_app
+            deliver_email,
+            deliver_in_app,
+            deliver_push,
+            deliver_sms,
         )
 
         if channel == NotificationChannel.IN_APP:

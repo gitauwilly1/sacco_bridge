@@ -1,10 +1,15 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import SimpleRouter
+
 from apps.legal.views import (
-    LatestTermsView, LatestPrivacyView,
-    AcceptDocumentView, AcceptanceStatusView,
-    LegalDocumentViewSet, SignatureVerifyView, 
-    SignatureRequestView, SignatureConfirmView
+    AcceptanceStatusView,
+    AcceptDocumentView,
+    LatestPrivacyView,
+    LatestTermsView,
+    LegalDocumentViewSet,
+    SignatureConfirmView,
+    SignatureRequestView,
+    SignatureVerifyView,
 )
 
 router = SimpleRouter()

@@ -1,7 +1,8 @@
 from django.urls import re_path
+
 from apps.chatbot.consumers import ChatConsumer
-from apps.transactions.consumers import SettlementConsumer
 from apps.notifications.consumers import NotificationConsumer
+from apps.transactions.consumers import SettlementConsumer
 
 websocket_urlpatterns = [
     # Chat - AI assistant

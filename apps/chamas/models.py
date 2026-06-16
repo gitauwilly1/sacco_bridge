@@ -1,12 +1,13 @@
 import uuid
 from decimal import Decimal
+
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.core.validators import MinValueValidator, MaxValueValidator
 
 from apps.core.models import BaseModel
-from apps.core.validators import validate_positive_amount, validate_percentage
+from apps.core.validators import validate_percentage, validate_positive_amount
 
 
 class ChamaStatus(models.TextChoices):

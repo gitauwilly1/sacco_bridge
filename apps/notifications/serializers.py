@@ -1,8 +1,6 @@
 from rest_framework import serializers
-from apps.notifications.models import (
-    Notification, UserDevice, NotificationPreference,
-    NotificationCategory
-)
+
+from apps.notifications.models import Notification, NotificationPreference, UserDevice
 
 
 class NotificationSerializer(serializers.ModelSerializer):

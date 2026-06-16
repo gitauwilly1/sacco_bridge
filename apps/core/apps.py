@@ -8,4 +8,4 @@ class CoreConfig(AppConfig):
     label = 'core'
 
     def ready(self):
-        import apps.core.audit
+        pass

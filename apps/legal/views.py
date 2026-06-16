@@ -1,11 +1,17 @@
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status, permissions, viewsets
+from drf_spectacular.utils import extend_schema
+from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema
 
-from apps.legal.models import LegalDocument, LegalDocumentType, UserLegalAcceptance, Signature, SignableDocumentType
-from apps.legal.serializers import LegalDocumentSerializer, AcceptDocumentSerializer
+from apps.legal.models import (
+    LegalDocument,
+    LegalDocumentType,
+    SignableDocumentType,
+    Signature,
+    UserLegalAcceptance,
+)
+from apps.legal.serializers import AcceptDocumentSerializer, LegalDocumentSerializer
 from apps.users.permissions import IsPlatformStaff
 from apps.users.services import AuthenticationService
 

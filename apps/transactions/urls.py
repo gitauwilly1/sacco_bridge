@@ -1,8 +1,13 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import SimpleRouter
+
 from apps.transactions.views import (
-    SettlementViewSet, DisputeViewSet, LedgerViewSet,
-    RaiseDisputeView, MyDisputesView, DisputeDetailView
+    DisputeDetailView,
+    DisputeViewSet,
+    LedgerViewSet,
+    MyDisputesView,
+    RaiseDisputeView,
+    SettlementViewSet,
 )
 
 router = SimpleRouter()

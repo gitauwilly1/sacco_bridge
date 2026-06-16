@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from apps.webhooks.models import WebhookSubscription, WebhookDelivery
+
+from apps.webhooks.models import WebhookDelivery, WebhookSubscription
 
 
 class WebhookSubscriptionSerializer(serializers.ModelSerializer):

@@ -1,11 +1,9 @@
-import uuid
-import time
 import logging
-from django.conf import settings
-from urllib.parse import parse_qs
+import time
+import uuid
+
 from channels.db import database_sync_to_async
-from django.contrib.auth.models import AnonymousUser
-from rest_framework_simplejwt.tokens import AccessToken
+from django.conf import settings
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -111,8 +109,8 @@ class SecurityHeadersMiddleware:
 def get_user_from_token(token):
     from django.contrib.auth import get_user_model
     from django.contrib.auth.models import AnonymousUser
-    from rest_framework_simplejwt.tokens import AccessToken
     from rest_framework_simplejwt.exceptions import TokenError
+    from rest_framework_simplejwt.tokens import AccessToken
 
     User = get_user_model()
 
@@ -132,6 +130,7 @@ class WebSocketAuthMiddleware:
 
     async def __call__(self, scope, receive, send):
         from urllib.parse import parse_qs
+
         from django.contrib.auth.models import AnonymousUser
         
         query_string = scope.get('query_string', b'').decode()

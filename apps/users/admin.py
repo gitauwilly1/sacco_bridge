@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
-from apps.users.models import User, UserRole, UserProfile, LoginHistory
+
+from apps.users.models import LoginHistory, User, UserProfile, UserRole
 
 
 class UserRoleInline(admin.TabularInline):

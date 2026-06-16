@@ -1,9 +1,13 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import SimpleRouter
+
 from apps.investments.views import (
-    AdminSACCOViewSet, SACCOViewSet, SACCOHoldingViewSet,
-    LiquidityRequestViewSet, OpportunityViewSet,
+    AdminSACCOViewSet,
     ConnectionViewSet,
+    LiquidityRequestViewSet,
+    OpportunityViewSet,
+    SACCOHoldingViewSet,
+    SACCOViewSet,
 )
 
 router = SimpleRouter()

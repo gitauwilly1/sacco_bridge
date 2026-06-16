@@ -2,7 +2,7 @@
 
 import logging
 from decimal import Decimal
-from django.utils import timezone
+
 from django.db import models
 
 from apps.escrow.models import EscrowAccount, EscrowStatus

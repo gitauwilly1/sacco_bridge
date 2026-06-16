@@ -1,7 +1,10 @@
 from django.core.management.base import BaseCommand
+
 from apps.notifications.models import (
-    NotificationTemplate, NotificationCategory,
-    NotificationPriority, NotificationChannel
+    NotificationCategory,
+    NotificationChannel,
+    NotificationPriority,
+    NotificationTemplate,
 )
 
 

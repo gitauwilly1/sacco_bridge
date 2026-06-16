@@ -1,6 +1,8 @@
 import logging
+
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
+
 from apps.users.models import User, UserProfile
 
 logger = logging.getLogger(__name__)

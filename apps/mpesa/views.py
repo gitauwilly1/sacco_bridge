@@ -1,16 +1,17 @@
 import logging
-from django.utils import timezone
+
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status, permissions
+from drf_spectacular.utils import extend_schema
+from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema
 
-from apps.mpesa.models import MpesaTransaction, MpesaTransactionStatus, MpesaTransactionType
+from apps.mpesa.models import MpesaTransaction, MpesaTransactionType
 from apps.mpesa.serializers import (
-    StkPushRequestSerializer, StkPushResponseSerializer,
-    MpesaTransactionSerializer
+    MpesaTransactionSerializer,
+    StkPushRequestSerializer,
+    StkPushResponseSerializer,
 )
 from apps.mpesa.services import MpesaService
 

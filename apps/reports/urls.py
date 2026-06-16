@@ -1,6 +1,9 @@
 from django.urls import path
+
 from apps.reports.views import (
-    ReportRequestView, ReportStatusView, ReportDownloadView,
+    ReportDownloadView,
+    ReportRequestView,
+    ReportStatusView,
 )
 
 urlpatterns = [

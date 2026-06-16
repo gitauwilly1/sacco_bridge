@@ -1,10 +1,11 @@
-import uuid
 import hashlib
 import hmac
+import uuid
 from decimal import Decimal
-from django.utils import timezone
-from django.conf import settings
+
 from cryptography.fernet import Fernet
+from django.conf import settings
+from django.utils import timezone
 
 
 def generate_unique_id(prefix='SB'):

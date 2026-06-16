@@ -1,9 +1,8 @@
 import logging
+
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 from apps.transactions.services import RecoveryService
-from apps.transactions.models import SettlementState, SettlementEventTrigger
 
 logger = logging.getLogger(__name__)
 

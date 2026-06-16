@@ -1,4 +1,5 @@
 import logging
+
 from celery import shared_task
 from django.utils import timezone
 
@@ -15,8 +16,8 @@ def send_contribution_reminders(self):
     logger.info("Starting contribution reminder scan...")
 
     from apps.chamas.models import ChamaMember, Contribution, ContributionStatus
-    from apps.notifications.services import NotificationService
     from apps.notifications.models import NotificationCategory, NotificationPriority
+    from apps.notifications.services import NotificationService
 
     try:
         today = timezone.now().date()
@@ -98,8 +99,8 @@ def send_loan_repayment_reminders(self):
     logger.info("Starting loan repayment reminder scan...")
 
     from apps.chamas.models import Loan, LoanStatus
-    from apps.notifications.services import NotificationService
     from apps.notifications.models import NotificationCategory, NotificationPriority
+    from apps.notifications.services import NotificationService
 
     try:
         today = timezone.now().date()
@@ -189,8 +190,8 @@ def update_chama_health_scores(self):
 def detect_loan_defaults(self):
     """Detect and mark defaulted loans."""
     from apps.chamas.models import Loan, LoanStatus
-    from apps.notifications.services import NotificationService
     from apps.notifications.models import NotificationCategory, NotificationPriority
+    from apps.notifications.services import NotificationService
 
     logger.info("Starting loan default detection...")
 

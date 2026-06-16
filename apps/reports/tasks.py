@@ -3,11 +3,12 @@ import io
 import logging
 from datetime import datetime
 from decimal import Decimal
-from django.utils import timezone
-from django.core.files.base import ContentFile
-from celery import shared_task
 
-from apps.reports.models import ReportRequest, ReportType, ReportStatus
+from celery import shared_task
+from django.core.files.base import ContentFile
+from django.utils import timezone
+
+from apps.reports.models import ReportRequest, ReportType
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ def write_csv_header(writer, headers):
 
 
 def generate_transaction_history(report):
-    from apps.transactions.models import SettlementIntent, SettlementState
+    from apps.transactions.models import SettlementIntent
 
     filters = report.filters or {}
     date_from = filters.get('date_from')
@@ -123,7 +124,7 @@ def generate_transaction_history(report):
 
 
 def generate_contribution_report(report):
-    from apps.chamas.models import Contribution, ChamaMember
+    from apps.chamas.models import ChamaMember, Contribution
 
     filters = report.filters or {}
     chama_id = filters.get('chama_id')
@@ -176,7 +177,7 @@ def generate_contribution_report(report):
 
 
 def generate_loan_statement(report):
-    from apps.chamas.models import Loan, ChamaMember, LoanRepayment
+    from apps.chamas.models import ChamaMember, Loan
 
     filters = report.filters or {}
     chama_id = filters.get('chama_id')
@@ -271,7 +272,7 @@ def generate_member_list(report):
 
 
 def generate_chama_financial(report):
-    from apps.chamas.models import Chama, Contribution, Loan
+    from apps.chamas.models import Chama, Contribution
 
     filters = report.filters or {}
     chama_id = filters.get('chama_id')
@@ -319,7 +320,7 @@ def generate_chama_financial(report):
 
 
 def generate_dividend_statement(report):
-    from apps.investments.models import SACCOMemberHolding, SACCO
+    from apps.investments.models import SACCOMemberHolding
 
     holdings = SACCOMemberHolding.objects.filter(
         user=report.user,
@@ -352,4 +353,3 @@ def generate_dividend_statement(report):
 
 
 # Import at bottom to avoid circular imports
-from django.db import models as django_models

@@ -1,21 +1,20 @@
-from rest_framework import status, permissions
+from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema
+from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
-from drf_spectacular.utils import extend_schema
-from django.utils.translation import gettext_lazy as _
 
-from apps.core.mixins import SoftDeleteMixin
-from apps.chatbot.models import (
-    ChatSession, ChatMessage, KnowledgeArticle,
-    SessionType
-)
+from apps.chatbot.models import ChatMessage, ChatSession, KnowledgeArticle
 from apps.chatbot.serializers import (
-    ChatSessionSerializer, ChatMessageSerializer,
-    KnowledgeArticleSerializer, ChatRequestSerializer,
+    ChatMessageSerializer,
+    ChatRequestSerializer,
+    ChatSessionSerializer,
+    KnowledgeArticleSerializer,
 )
-from apps.chatbot.services import GeminiService, KnowledgeService
+from apps.chatbot.services import GeminiService
+from apps.core.mixins import SoftDeleteMixin
 from apps.users.permissions import IsPlatformStaff
 
 

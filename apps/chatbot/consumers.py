@@ -1,13 +1,12 @@
 import json
 import logging
-from channels.generic.websocket import AsyncWebsocketConsumer
+
 from channels.db import database_sync_to_async
+from channels.generic.websocket import AsyncWebsocketConsumer
 from django.utils import timezone
 
-from apps.chatbot.models import (
-    ChatSession, ChatMessage, SessionType, MessageRole
-)
-from apps.chatbot.services import GeminiService, KnowledgeService
+from apps.chatbot.models import ChatMessage, ChatSession, MessageRole, SessionType
+from apps.chatbot.services import GeminiService
 
 logger = logging.getLogger(__name__)
 

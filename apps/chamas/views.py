@@ -1,33 +1,52 @@
 import logging
-from decimal import Decimal
+
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status, permissions, viewsets
-from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework.views import APIView
 
-from apps.core.exceptions import (
-    ChamaMembershipError, InsufficientFundsError, LoanEligibilityError,
-    PermissionDeniedError
-)
-from apps.core.pagination import SmallPagination
-from apps.core.mixins import SoftDeleteMixin
 from apps.chamas.models import (
-    Chama, ChamaMember, ConstitutionAgreement, Contribution, Loan, LoanRepayment,
-    Meeting, MeetingAttendance, MemberRole, LoanStatus,
-    PaymentMethod, ContributionStatus,Poll, PollOption, Vote,
+    Chama,
+    ChamaMember,
+    ConstitutionAgreement,
+    Contribution,
+    ContributionStatus,
+    Loan,
+    LoanRepayment,
+    LoanStatus,
+    Meeting,
+    MeetingAttendance,
+    MemberRole,
+    PaymentMethod,
+    Poll,
+    PollOption,
+    Vote,
 )
 from apps.chamas.serializers import (
-    ChamaSerializer, ChamaCreateSerializer, ChamaMemberSerializer,
-    ContributionSerializer, ContributionCreateSerializer,
-    LoanSerializer, LoanCreateSerializer, LoanRepaymentSerializer,
-    MeetingSerializer, MeetingAttendanceSerializer,
-    PayoutSerializer, PayoutRecipientSerializer,
-    PollSerializer, PollOptionSerializer, VoteSerializer
+    ChamaCreateSerializer,
+    ChamaMemberSerializer,
+    ChamaSerializer,
+    ContributionCreateSerializer,
+    ContributionSerializer,
+    LoanCreateSerializer,
+    LoanSerializer,
+    MeetingAttendanceSerializer,
+    MeetingSerializer,
+    PollSerializer,
+    VoteSerializer,
 )
+from apps.core.exceptions import (
+    ChamaMembershipError,
+    InsufficientFundsError,
+    LoanEligibilityError,
+    PermissionDeniedError,
+)
+from apps.core.mixins import SoftDeleteMixin
+from apps.core.pagination import SmallPagination
 from apps.users.permissions import IsChamaAdmin, IsPlatformStaff
 
 logger = logging.getLogger(__name__)
@@ -164,9 +183,7 @@ class ChamaViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             'grade': chama.health_score_grade or 'N/A',
         }
 
-        from apps.chamas.serializers import (
-            ContributionSerializer, MeetingSerializer
-        )
+        from apps.chamas.serializers import ContributionSerializer, MeetingSerializer
 
         return Response({
             'success': True,
@@ -393,7 +410,7 @@ class ChamaMemberViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         ).select_related('user', 'chama')
 
     def perform_update(self, serializer):
-        member = self.get_object()
+        self.get_object()
         if not IsChamaAdmin().has_permission(self.request, self):
             raise PermissionDeniedError(_('Only chama admins can change member roles.'))
         serializer.save()
@@ -850,8 +867,13 @@ class BulkContributionView(APIView):
         }
     )
     def post(self, request, chama_pk):
-        from apps.chamas.models import Chama, ChamaMember, Contribution, ContributionStatus, PaymentMethod
-        from apps.chamas.serializers import ContributionSerializer
+        from apps.chamas.models import (
+            Chama,
+            ChamaMember,
+            Contribution,
+            ContributionStatus,
+            PaymentMethod,
+        )
         from apps.receipts.services import ReceiptPDFGenerator
 
         # Validate chama exists and user is authorized
@@ -1080,8 +1102,8 @@ class BulkInviteMembersView(APIView):
     )
     def post(self, request, chama_pk):
         from apps.chamas.models import Chama, ChamaMember, MemberRole
-        from apps.notifications.services import NotificationService
         from apps.notifications.models import NotificationCategory, NotificationPriority
+        from apps.notifications.services import NotificationService
 
         # Validate chama exists and user is admin
         try:
@@ -1191,8 +1213,8 @@ class BulkInviteMembersView(APIView):
 
             try:
                 phone = invitee.get('phone_number', invitee.get('Phone', invitee.get('phone', '')))
-                email = invitee.get('email', invitee.get('Email', ''))
-                name = invitee.get('name', invitee.get('Name', ''))
+                invitee.get('email', invitee.get('Email', ''))
+                invitee.get('name', invitee.get('Name', ''))
 
                 if not phone:
                     result['status'] = 'failed'

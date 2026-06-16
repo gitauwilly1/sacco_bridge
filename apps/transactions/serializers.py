@@ -1,11 +1,14 @@
-from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from apps.core.serializers import BaseSerializer
 from apps.transactions.models import (
-    SettlementIntent, SettlementEvent, LedgerEntry,
-    SettlementReversal, SettlementState, SettlementEventTrigger,
-    Dispute, DisputeReason, DisputeStatus,
+    Dispute,
+    DisputeReason,
+    LedgerEntry,
+    SettlementEvent,
+    SettlementIntent,
+    SettlementReversal,
+    SettlementState,
 )
 
 

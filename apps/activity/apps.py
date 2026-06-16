@@ -8,4 +8,4 @@ class ActivityConfig(AppConfig):
     label = 'activity'
 
     def ready(self):
-        import apps.activity.signals
+        pass

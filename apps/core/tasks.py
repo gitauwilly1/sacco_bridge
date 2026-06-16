@@ -1,4 +1,5 @@
 import logging
+
 from celery import shared_task
 from django.utils import timezone
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 def cleanup_expired_data(self):
     logger.info("Starting expired data cleanup...")
 
-    from apps.users.models import User, LoginHistory
+    from apps.users.models import LoginHistory, User
 
     try:
         # Clear expired verification codes

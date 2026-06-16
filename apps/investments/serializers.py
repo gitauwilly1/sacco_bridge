@@ -1,13 +1,18 @@
 from decimal import Decimal
-from django.utils import timezone
+
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from apps.core.serializers import BaseSerializer, DynamicFieldsMixin
 from apps.investments.models import (
-    SACCO, SACCOShareClass, SACCOMemberHolding,
-    LiquidityRequest, BuyerInterest, Connection, Offer,
-    LiquidityRequestStatus, ConnectionStatus
+    SACCO,
+    BuyerInterest,
+    Connection,
+    LiquidityRequest,
+    LiquidityRequestStatus,
+    Offer,
+    SACCOMemberHolding,
+    SACCOShareClass,
 )
 
 

@@ -1,8 +1,8 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from apps.webhooks.tasks import trigger_webhook_event
 from apps.webhooks.models import WebhookEventType
+from apps.webhooks.tasks import trigger_webhook_event
 
 
 @receiver(post_save, sender='transactions.SettlementIntent')

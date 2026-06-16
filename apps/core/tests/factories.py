@@ -1,9 +1,9 @@
 import uuid
-import random
+from datetime import date, timedelta
 from decimal import Decimal
-from datetime import date, timedelta, time
-from django.utils import timezone
+
 import factory
+from django.utils import timezone
 from factory.django import DjangoModelFactory
 
 

@@ -1,30 +1,43 @@
 import logging
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status, permissions
+from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from rest_framework_simplejwt.views import TokenRefreshView
+
+from apps.core.exceptions import AuthenticationFailedError, VerificationError
 from apps.core.pagination import SmallPagination
 from apps.core.throttling import SensitiveOperationThrottle
-from apps.core.exceptions import AuthenticationFailedError, VerificationError
 from apps.users.models import LoginHistory
-from apps.users.serializers import (
-    PasswordResetConfirmSerializer, UserRegistrationSerializer, UserLoginSerializer,
-    EmailVerificationSerializer, PhoneVerificationSerializer,
-    ResendVerificationSerializer, GoogleAuthSerializer,
-    TwoFactorSetupSerializer, PasswordChangeSerializer,
-    PasswordResetRequestSerializer, UserProfileSerializer,
-    UserProfileUpdateSerializer, UserProfileDetailSerializer,
-    LoginHistorySerializer, PhoneNumberUpdateSerializer,
-)
-from apps.users.services import AuthenticationService, TwoFactorService, GoogleAuthService
 from apps.users.permissions import IsPlatformStaff
-from django.db import models as django_models
+from apps.users.serializers import (
+    EmailVerificationSerializer,
+    GoogleAuthSerializer,
+    LoginHistorySerializer,
+    PasswordChangeSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    PhoneNumberUpdateSerializer,
+    PhoneVerificationSerializer,
+    ResendVerificationSerializer,
+    TwoFactorSetupSerializer,
+    UserLoginSerializer,
+    UserProfileDetailSerializer,
+    UserProfileSerializer,
+    UserProfileUpdateSerializer,
+    UserRegistrationSerializer,
+)
+from apps.users.services import (
+    AuthenticationService,
+    GoogleAuthService,
+    TwoFactorService,
+)
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -247,8 +260,8 @@ class GoogleAuthView(APIView):
 
         try:
             # Verify the Google ID token and extract user info
-            from google.oauth2 import id_token as google_id_token
             from google.auth.transport import requests as google_requests
+            from google.oauth2 import id_token as google_id_token
 
             try:
                 idinfo = google_id_token.verify_oauth2_token(
@@ -447,8 +460,8 @@ class TwoFactorRecoveryConfirmView(APIView):
     )
     def post(self, request):
         from django.contrib.auth.tokens import default_token_generator
-        from django.utils.http import urlsafe_base64_decode
         from django.utils.encoding import force_str
+        from django.utils.http import urlsafe_base64_decode
 
         uidb64 = request.data.get('uidb64', '')
         token = request.data.get('token', '')
@@ -626,8 +639,8 @@ class PasswordResetConfirmView(APIView):
     )
     def post(self, request):
         from django.contrib.auth.tokens import default_token_generator
-        from django.utils.http import urlsafe_base64_decode
         from django.utils.encoding import force_str
+        from django.utils.http import urlsafe_base64_decode
 
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -753,7 +766,7 @@ class ActiveSessionsView(APIView):
         description='View all active login sessions with device info.'
     )
     def get(self, request):
-        from django.db.models import Q
+        pass
 
         # Get recent successful logins (last 30 days)
         thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
@@ -1076,8 +1089,9 @@ class DataExportView(APIView):
             })
 
         # Settlements
-        from apps.transactions.models import SettlementIntent
         from django.db import models
+
+        from apps.transactions.models import SettlementIntent
         settlements = SettlementIntent.objects.filter(
             models.Q(buyer=user) | models.Q(seller=user)
         ).order_by('-created_at')[:50]
@@ -1427,6 +1441,7 @@ class DeletionRequestView(APIView):
     )
     def post(self, request):
         from django.contrib.contenttypes.models import ContentType
+
         from apps.core.models import DeletionRequest
 
         app_label = request.data.get('app_label')
@@ -1573,8 +1588,11 @@ class AdminDeletionReviewView(APIView):
             if success:
                 # Notify user
                 try:
+                    from apps.notifications.models import (
+                        NotificationCategory,
+                        NotificationPriority,
+                    )
                     from apps.notifications.services import NotificationService
-                    from apps.notifications.models import NotificationCategory, NotificationPriority
 
                     NotificationService.create_notification(
                         user=deletion_request.requested_by,
@@ -1603,8 +1621,11 @@ class AdminDeletionReviewView(APIView):
             deletion_request.reject(request.user, notes)
 
             try:
+                from apps.notifications.models import (
+                    NotificationCategory,
+                    NotificationPriority,
+                )
                 from apps.notifications.services import NotificationService
-                from apps.notifications.models import NotificationCategory, NotificationPriority
 
                 NotificationService.create_notification(
                     user=deletion_request.requested_by,

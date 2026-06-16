@@ -1,6 +1,7 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import SimpleRouter
-from apps.webhooks.views import WebhookSubscriptionViewSet, WebhookDeliveryViewSet
+
+from apps.webhooks.views import WebhookDeliveryViewSet, WebhookSubscriptionViewSet
 
 router = SimpleRouter()
 router.register(r'subscriptions', WebhookSubscriptionViewSet, basename='webhook-subscription')

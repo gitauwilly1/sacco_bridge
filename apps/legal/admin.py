@@ -1,4 +1,5 @@
 from django.contrib import admin
+
 from apps.legal.models import LegalDocument, UserLegalAcceptance
 
 

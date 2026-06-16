@@ -1,8 +1,10 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import SimpleRouter
+
 from apps.chatbot.views import (
-    ChatSessionViewSet, KnowledgeArticleViewSet,
     ChatbotContextView,
+    ChatSessionViewSet,
+    KnowledgeArticleViewSet,
 )
 
 router = SimpleRouter()

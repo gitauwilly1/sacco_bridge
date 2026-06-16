@@ -1,13 +1,10 @@
 import logging
+
+from django.conf import settings
 from google import genai
 from google.genai import types
-from django.conf import settings
-from django.utils import timezone
 
-from apps.chatbot.models import (
-    ChatSession, ChatMessage, KnowledgeArticle,
-    SessionType, MessageRole, KnowledgeCategory
-)
+from apps.chatbot.models import KnowledgeArticle, KnowledgeCategory
 
 logger = logging.getLogger(__name__)
 

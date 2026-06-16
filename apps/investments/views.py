@@ -1,33 +1,39 @@
-from decimal import Decimal
 import logging
+from decimal import Decimal
+
+from django.db import models as django_models
 from django.db import transaction
 from django.utils import timezone
-from django.db import models as django_models
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status, permissions, viewsets
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from apps.core.exceptions import (
-    InsufficientFundsError, VerificationError, PermissionDeniedError
-)
-from apps.core.pagination import SmallPagination
+from apps.core.exceptions import PermissionDeniedError
 from apps.core.mixins import SoftDeleteMixin
+from apps.core.pagination import SmallPagination
 from apps.investments.models import (
-    SACCO, SACCOShareClass, SACCOMemberHolding,
-    LiquidityRequest, BuyerInterest, Connection, Offer,
-    LiquidityRequestStatus, ConnectionStatus
+    SACCO,
+    BuyerInterest,
+    Connection,
+    ConnectionStatus,
+    LiquidityRequest,
+    LiquidityRequestStatus,
+    Offer,
+    SACCOMemberHolding,
 )
 from apps.investments.serializers import (
-    SACCOSerializer, SACCOShareClassSerializer,
+    BuyerInterestSerializer,
+    ConnectionSerializer,
+    LiquidityRequestCreateSerializer,
+    LiquidityRequestSerializer,
+    OfferSerializer,
     SACCOMemberHoldingSerializer,
-    LiquidityRequestSerializer, LiquidityRequestCreateSerializer,
-    BuyerInterestSerializer, ConnectionSerializer, OfferSerializer,
+    SACCOSerializer,
+    SACCOShareClassSerializer,
 )
-from apps.users.permissions import (
-    IsVerifiedUser, IsInvestorOrInstitutional, IsPlatformStaff
-)
+from apps.users.permissions import IsPlatformStaff, IsVerifiedUser
 
 logger = logging.getLogger(__name__)
 

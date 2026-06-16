@@ -1,26 +1,27 @@
-import os
-import io
 import hashlib
+import io
 import logging
+import os
 from datetime import datetime
 from decimal import Decimal
-from django.conf import settings
-from django.utils import timezone
-from django.core.files.base import ContentFile
 
-from reportlab.lib.pagesizes import A5
-from reportlab.lib.units import mm
-from reportlab.lib.colors import HexColor, white, black
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    Image
-)
-from reportlab.graphics.shapes import Drawing, Rect, String
-from reportlab.graphics import renderPDF
 import qrcode
-from PIL import Image as PILImage
+from django.core.files.base import ContentFile
+from django.utils import timezone
+from reportlab.graphics.shapes import Drawing, Rect
+from reportlab.lib.colors import HexColor
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A5
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    Image,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from apps.receipts.models import Receipt, ReceiptType
 

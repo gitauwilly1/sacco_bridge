@@ -1,10 +1,11 @@
 import random
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from datetime import date, timedelta, datetime, time
-from django.core.management.base import BaseCommand
-from django.utils import timezone
+
 from django.contrib.auth import get_user_model
+from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -60,10 +61,14 @@ class Command(BaseCommand):
 
     def create_saccos_and_share_classes(self):
         """Create verified SACCOs with share classes and market data."""
-        from apps.investments.models import (
-            SACCO, SACCOShareClass, ShareClass, SASRATier, SACCOStatus,
-        )
         from apps.analytics.models import SACCOMarketAnalytics
+        from apps.investments.models import (
+            SACCO,
+            SACCOShareClass,
+            SACCOStatus,
+            SASRATier,
+            ShareClass,
+        )
 
         saccos_data = [
             {
@@ -217,7 +222,7 @@ class Command(BaseCommand):
     # 3. USERS WITH PROFILES
 
     def create_users_with_profiles(self):
-        from apps.users.models import Role, UserProfile
+        from apps.users.models import Role
 
         users_data = [
             # Sellers seeking liquidity
@@ -401,12 +406,20 @@ class Command(BaseCommand):
 
     def create_chamas_with_full_data(self):
         from apps.chamas.models import (
-            Chama, ChamaMember, Contribution, Loan, LoanRepayment,
-            Meeting, MeetingAttendance, MemberRole as ChamaMemberRole,
-            ContributionFrequency, ContributionStatus, LoanStatus,
-            PaymentMethod, MeetingStatus
+            Chama,
+            ChamaMember,
+            Contribution,
+            ContributionFrequency,
+            ContributionStatus,
+            Loan,
+            LoanRepayment,
+            LoanStatus,
+            Meeting,
+            MeetingAttendance,
+            MeetingStatus,
         )
-        from apps.users.models import Role as UserRole
+        from apps.chamas.models import MemberRole as ChamaMemberRole
+        from apps.chamas.models import PaymentMethod
 
         chamas_data = [
             {
@@ -677,7 +690,7 @@ class Command(BaseCommand):
     # 5. SACCO HOLDINGS
 
     def create_sacco_holdings(self):
-        from apps.investments.models import SACCO, SACCOShareClass, SACCOMemberHolding
+        from apps.investments.models import SACCO, SACCOMemberHolding
 
         sacco = SACCO.objects.first()
         if not sacco:
@@ -741,9 +754,13 @@ class Command(BaseCommand):
 
     def create_liquidity_requests_and_connections(self):
         from apps.investments.models import (
-            SACCO, SACCOShareClass, SACCOMemberHolding,
-            LiquidityRequest, BuyerInterest, Connection, Offer,
-            LiquidityRequestStatus, UrgencyLevel, ConnectionStatus
+            BuyerInterest,
+            Connection,
+            ConnectionStatus,
+            LiquidityRequest,
+            Offer,
+            SACCOMemberHolding,
+            UrgencyLevel,
         )
 
         holdings = SACCOMemberHolding.objects.filter(
@@ -861,18 +878,24 @@ class Command(BaseCommand):
     # 7. SETTLEMENTS
 
     def create_settlements(self):
-        from apps.transactions.models import (
-            SettlementIntent, SettlementEvent, LedgerEntry,
-            SettlementState, SettlementEventTrigger
-        )
         from apps.investments.models import Connection, ConnectionStatus
+        from apps.transactions.models import (
+            LedgerEntry,
+            SettlementEvent,
+            SettlementEventTrigger,
+            SettlementIntent,
+            SettlementState,
+        )
 
         accepted_connections = Connection.objects.filter(
             status=ConnectionStatus.OFFER_MADE
         )
 
         for conn in accepted_connections[:3]:
-            from apps.core.utils import calculate_settlement_fee, generate_idempotency_key
+            from apps.core.utils import (
+                calculate_settlement_fee,
+                generate_idempotency_key,
+            )
 
             latest_offer = conn.offers.first()
             if not latest_offer:
@@ -994,8 +1017,10 @@ class Command(BaseCommand):
 
     def create_notifications(self):
         from apps.notifications.models import (
-            Notification, NotificationCategory, NotificationPriority,
-            NotificationChannel
+            Notification,
+            NotificationCategory,
+            NotificationChannel,
+            NotificationPriority,
         )
 
         users = User.objects.filter(is_active=True)[:8]
@@ -1087,7 +1112,7 @@ class Command(BaseCommand):
     # 9. ANALYTICS DATA
 
     def create_analytics_data(self):
-        from apps.analytics.models import PlatformMetric, ChamaAnalytics
+        from apps.analytics.models import ChamaAnalytics, PlatformMetric
         from apps.chamas.models import Chama
 
         # Platform metrics for last 30 days
@@ -1347,7 +1372,7 @@ class Command(BaseCommand):
     # 11. CHAT SESSIONS
 
     def create_chat_sessions(self):
-        from apps.chatbot.models import ChatSession, ChatMessage, SessionType, MessageRole
+        from apps.chatbot.models import ChatMessage, ChatSession, SessionType
 
         users = User.objects.filter(is_active=True)[:5]
 

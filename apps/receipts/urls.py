@@ -1,6 +1,9 @@
 from django.urls import path
+
 from apps.receipts.views import (
-    ReceiptListView, ReceiptDetailView, ReceiptDownloadView,
+    ReceiptDetailView,
+    ReceiptDownloadView,
+    ReceiptListView,
 )
 
 urlpatterns = [
