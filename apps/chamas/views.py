@@ -927,113 +927,118 @@ class BulkContributionView(APIView):
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Process each contribution
+        # Process each contribution with individual savepoints
         results = []
         success_count = 0
         failure_count = 0
 
-        with transaction.atomic():
-            for idx, contrib_data in enumerate(contributions_data):
-                result = {
-                    'index': idx,
-                    'member_id': contrib_data.get('member_id'),
-                    'status': 'pending',
-                }
+        for idx, contrib_data in enumerate(contributions_data):
+            result = {
+                'index': idx,
+                'member_id': contrib_data.get('member_id'),
+                'status': 'pending',
+            }
+
+            try:
+                # Use savepoint for individual contribution isolation
+                sid = transaction.savepoint()
+                
+                # Validate member
+                member_id = contrib_data.get('member_id')
+                if not member_id:
+                    result['status'] = 'failed'
+                    result['error'] = _('member_id is required.')
+                    failure_count += 1
+                    results.append(result)
+                    transaction.savepoint_rollback(sid)
+                    continue
 
                 try:
-                    # Validate member
-                    member_id = contrib_data.get('member_id')
-                    if not member_id:
-                        result['status'] = 'failed'
-                        result['error'] = _('member_id is required.')
-                        failure_count += 1
-                        results.append(result)
-                        continue
-
-                    try:
-                        member = ChamaMember.objects.get(
-                            id=member_id,
-                            chama=chama,
-                            is_active=True,
-                        )
-                    except ChamaMember.DoesNotExist:
-                        result['status'] = 'failed'
-                        result['error'] = _('Member not found or not active in this chama.')
-                        failure_count += 1
-                        results.append(result)
-                        continue
-
-                    # Validate amount
-                    amount = contrib_data.get('amount')
-                    if not amount or float(amount) <= 0:
-                        result['status'] = 'failed'
-                        result['error'] = _('Amount must be greater than zero.')
-                        failure_count += 1
-                        results.append(result)
-                        continue
-
-                    from decimal import Decimal
-                    amount = Decimal(str(amount))
-
-                    # Determine payment method
-                    payment_method = contrib_data.get(
-                        'payment_method',
-                        PaymentMethod.CASH
-                    )
-                    payment_reference = contrib_data.get('payment_reference', '')
-                    notes = contrib_data.get('notes', '')
-
-                    # Create contribution
-                    contribution = Contribution.objects.create(
+                    member = ChamaMember.objects.get(
+                        id=member_id,
                         chama=chama,
-                        member=member,
-                        amount=amount,
-                        expected_amount=chama.contribution_amount,
-                        status=ContributionStatus.PAID,
-                        payment_method=payment_method,
-                        payment_reference=payment_reference,
-                        period_start=period_start,
-                        period_end=period_end,
-                        paid_at=timezone.now(),
-                        notes=notes,
+                        is_active=True,
                     )
-
-                    # Update member stats
-                    member.total_contributions += amount
-                    member.current_balance += amount
-                    member.last_contribution_date = timezone.now().date()
-                    member.contribution_streak += 1
-                    member.is_overdue = False
-                    member.overdue_amount = Decimal('0.00')
-                    member.save()
-
-                    # Generate receipt
-                    try:
-                        ReceiptPDFGenerator.generate_contribution_receipt(
-                            contribution=contribution,
-                            user=member.user,
-                            chama_name=chama.name,
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to generate receipt: {e}", exc_info=True)
-
-                    result['status'] = 'success'
-                    result['contribution_id'] = str(contribution.id)
-                    result['amount'] = str(amount)
-                    result['member_name'] = member.user.get_full_name()
-                    success_count += 1
-
-                except Exception as e:
-                    logger.error(f"Bulk contribution error at index {idx}: {e}")
+                except ChamaMember.DoesNotExist:
                     result['status'] = 'failed'
-                    result['error'] = str(e)
+                    result['error'] = _('Member not found or not active in this chama.')
                     failure_count += 1
+                    results.append(result)
+                    transaction.savepoint_rollback(sid)
+                    continue
 
-                results.append(result)
+                # Validate amount
+                amount = contrib_data.get('amount')
+                if not amount or float(amount) <= 0:
+                    result['status'] = 'failed'
+                    result['error'] = _('Amount must be greater than zero.')
+                    failure_count += 1
+                    results.append(result)
+                    transaction.savepoint_rollback(sid)
+                    continue
 
-            # Update chama financials
-            chama.update_financials()
+                from decimal import Decimal
+                amount = Decimal(str(amount))
 
+                payment_method = contrib_data.get('payment_method', PaymentMethod.CASH)
+                payment_reference = contrib_data.get('payment_reference', '')
+                notes = contrib_data.get('notes', '')
+
+                # Create contribution
+                contribution = Contribution.objects.create(
+                    chama=chama,
+                    member=member,
+                    amount=amount,
+                    expected_amount=chama.contribution_amount,
+                    status=ContributionStatus.PAID,
+                    payment_method=payment_method,
+                    payment_reference=payment_reference,
+                    period_start=period_start,
+                    period_end=period_end,
+                    paid_at=timezone.now(),
+                    notes=notes,
+                )
+
+                # Update member stats
+                member.total_contributions += amount
+                member.current_balance += amount
+                member.last_contribution_date = timezone.now().date()
+                member.contribution_streak += 1
+                member.is_overdue = False
+                member.overdue_amount = Decimal('0.00')
+                member.save()
+
+                # Generate receipt
+                try:
+                    ReceiptPDFGenerator.generate_contribution_receipt(
+                        contribution=contribution,
+                        user=member.user,
+                        chama_name=chama.name,
+                    )
+                except Exception as e:
+                    logger.warning(f"Receipt generation failed: {e}")
+
+                transaction.savepoint_commit(sid)
+                
+                result['status'] = 'success'
+                result['contribution_id'] = str(contribution.id)
+                result['amount'] = str(amount)
+                result['member_name'] = member.user.get_full_name()
+                success_count += 1
+
+            except Exception as e:
+                logger.error(f"Bulk contribution error at index {idx}: {e}")
+                transaction.savepoint_rollback(sid)
+                result['status'] = 'failed'
+                result['error'] = str(e)
+                failure_count += 1
+
+            results.append(result)
+
+        # Update chama financials once at the end
+        chama.refresh_from_db()
+        chama.update_financials()
+        
         return Response({
             'success': True,
             'data': {
