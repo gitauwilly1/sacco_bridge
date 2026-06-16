@@ -1,6 +1,6 @@
 from django.urls import path
 from apps.users.views import (
-    RegistrationView, LoginView, TwoFactorSetupView,
+    AvailabilityCheckView, PasswordStrengthView, RegistrationView, LoginView, TwoFactorSetupView,
     EmailVerificationView, PhoneVerificationView,
     ResendVerificationView, GoogleAuthView,
     TokenRefreshViewCustom, LogoutView,
@@ -26,4 +26,6 @@ urlpatterns = [
     path('2fa/recovery/', TwoFactorRecoveryRequestView.as_view(), name='auth-2fa-recovery-request'),
     path('2fa/recovery/confirm/', TwoFactorRecoveryConfirmView.as_view(), name='auth-2fa-recovery-confirm'),
     path('2fa/disable-backup/', TwoFactorDisableWithBackupView.as_view(), name='auth-2fa-disable-backup'),
+    path('check-availability/', AvailabilityCheckView.as_view(), name='auth-check-availability'),
+    path('password-strength/', PasswordStrengthView.as_view(), name='auth-password-strength'),
 ]

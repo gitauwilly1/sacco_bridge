@@ -1292,3 +1292,112 @@ class TransactionLimitsView(APIView):
             'success': True,
             'data': limits,
         })
+
+class AvailabilityCheckView(APIView):
+
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        tags=['Authentication'],
+        summary='Check email/phone availability',
+        description='Check if an email or phone number is already registered.'
+    )
+    def get(self, request):
+        email = request.query_params.get('email', '').strip().lower()
+        phone = request.query_params.get('phone', '').strip()
+
+        if not email and not phone:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_param', 'message': _('Provide email or phone parameter.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        result = {}
+
+        if email:
+            result['email'] = email
+            result['email_available'] = not User.objects.filter(email__iexact=email).exists()
+
+        if phone:
+            import re
+            phone = re.sub(r'\s+', '', phone)
+            result['phone'] = phone
+            result['phone_available'] = not User.objects.filter(phone_number=phone).exists()
+
+        return Response({
+            'success': True,
+            'data': result,
+        })
+
+class PasswordStrengthView(APIView):
+
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        tags=['Authentication'],
+        summary='Check password strength',
+        description='Evaluate password strength and return feedback.'
+    )
+    def post(self, request):
+        password = request.data.get('password', '')
+
+        if not password:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_password', 'message': _('Password is required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        strength = 0
+        feedback = []
+
+        # Length check
+        if len(password) >= 12:
+            strength += 25
+        elif len(password) >= 8:
+            strength += 15
+            feedback.append(_('Use at least 12 characters for a stronger password.'))
+        else:
+            feedback.append(_('Password is too short. Use at least 8 characters.'))
+
+        # Uppercase
+        if any(c.isupper() for c in password):
+            strength += 20
+        else:
+            feedback.append(_('Add uppercase letters.'))
+
+        # Lowercase
+        if any(c.islower() for c in password):
+            strength += 20
+        else:
+            feedback.append(_('Add lowercase letters.'))
+
+        # Numbers
+        if any(c.isdigit() for c in password):
+            strength += 20
+        else:
+            feedback.append(_('Add numbers.'))
+
+        # Special characters
+        special_chars = '!@#$%^&*()_+-=[]{}|;:,.<>?/~`'
+        if any(c in special_chars for c in password):
+            strength += 15
+        else:
+            feedback.append(_('Add special characters for extra security.'))
+
+        strength = min(100, strength)
+
+        if strength >= 80:
+            level = 'strong'
+        elif strength >= 50:
+            level = 'medium'
+        else:
+            level = 'weak'
+
+        return Response({
+            'success': True,
+            'data': {
+                'strength': strength,
+                'level': level,
+                'feedback': feedback if feedback else [_('Password is strong.')],
+            },
+        })
