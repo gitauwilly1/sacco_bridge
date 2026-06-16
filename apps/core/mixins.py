@@ -32,6 +32,22 @@ class SoftDeleteMixin:
 
     @action(detail=True, methods=['delete'])
     def permanent(self, request, pk=None):
+        from apps.users.models import Role
+
+        is_admin = (
+            request.user.is_staff or
+            request.user.has_role(Role.PLATFORM_ADMIN)
+        )
+
+        if not is_admin:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'permission_denied',
+                    'message': _('Only platform administrators can permanently delete records.')
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
+
         instance = self.get_object()
         instance.delete()
 
@@ -40,7 +56,7 @@ class SoftDeleteMixin:
             'data': {},
             'message': _('Record permanently deleted.'),
         }, status=status.HTTP_204_NO_CONTENT)
-
+    
     @action(detail=False, methods=['get'])
     def trash(self, request):
         queryset = self.get_queryset().filter(is_deleted=True)
