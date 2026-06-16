@@ -328,17 +328,40 @@ class SettlementIntent(BaseModel):
         super().save(*args, **kwargs)
 
     def transition_to(self, new_state, trigger, external_ref='', metadata=None):
-        from_state = self.state
+        from django.db import transaction as db_transaction
 
-        if not self._is_valid_transition(from_state, new_state):
-            raise ValueError(
-                f"Invalid state transition: {from_state} -> {new_state}"
+        with db_transaction.atomic():
+            # Lock the row for update - prevents concurrent modifications
+            intent = SettlementIntent.objects.select_for_update().get(pk=self.pk)
+
+            from_state = intent.state
+
+            if not self._is_valid_transition(from_state, new_state):
+                raise ValueError(
+                    f"Invalid state transition: {from_state} -> {new_state}"
+                )
+
+            # Update using queryset with version check for optimistic locking
+            updated = SettlementIntent.objects.filter(
+                pk=self.pk,
+                state=from_state,
+                version=intent.version,
+            ).update(
+                state=new_state,
+                version=models.F('version') + 1,
+                updated_at=timezone.now(),
             )
 
-        self.state = new_state
-        self.version += 1
-        self.updated_at = timezone.now()
+            if not updated:
+                raise ValueError(
+                    f"State transition failed: settlement was modified by another process. "
+                    f"Expected state {from_state}, version {intent.version}"
+                )
 
+            # Refresh from database to get updated state
+            self.refresh_from_db()
+
+        # Set timing fields based on new state (outside lock)
         if new_state == SettlementState.INTENT_LOCKED:
             self.locked_at = timezone.now()
         elif new_state == SettlementState.BUYER_DEBIT_CONFIRMED:
@@ -352,8 +375,20 @@ class SettlementIntent(BaseModel):
         elif new_state == SettlementState.DISPUTED_MANUAL:
             self.dispute_opened_at = timezone.now()
 
-        self.save()
+        if any([
+            new_state == SettlementState.INTENT_LOCKED,
+            new_state == SettlementState.BUYER_DEBIT_CONFIRMED,
+            new_state == SettlementState.SELLER_CREDIT_CONFIRMED,
+            new_state == SettlementState.LEDGER_FINALIZED,
+            new_state == SettlementState.REVERSED,
+            new_state == SettlementState.DISPUTED_MANUAL,
+        ]):
+            self.save(update_fields=[
+                'locked_at', 'buyer_debited_at', 'seller_credited_at',
+                'finalized_at', 'reversed_at', 'dispute_opened_at',
+            ])
 
+        # Create event outside the lock
         SettlementEvent.objects.create(
             intent=self,
             from_state=from_state,
@@ -363,7 +398,7 @@ class SettlementIntent(BaseModel):
             metadata=metadata or {},
         )
 
-            # Broadcast to WebSocket
+        # Broadcast WebSocket update
         try:
             from channels.layers import get_channel_layer
             from asgiref.sync import async_to_sync
@@ -383,10 +418,10 @@ class SettlementIntent(BaseModel):
                     }
                 )
         except Exception as e:
-            logger.warning(f"WebSocket broadcast failed for settlement {self.uuid}: {e}")
+            logger.warning(f"WebSocket broadcast failed: {e}")
 
         return True
-
+    
     def _is_valid_transition(self, from_state, to_state):
         valid_transitions = {
             SettlementState.MATCH_PROPOSED: [
