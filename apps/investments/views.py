@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 from django.db import transaction
 from django.utils import timezone
@@ -290,6 +291,51 @@ class LiquidityRequestViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
 
             liquidity_request = serializer.save(seller=self.request.user)
             logger.info(f"Liquidity request created: {liquidity_request.id}")
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        if instance.status != LiquidityRequestStatus.ACTIVE:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'not_active',
+                    'message': _('Only active requests can be edited.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        if instance.status != LiquidityRequestStatus.ACTIVE:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'not_active',
+                    'message': _('Only active requests can be edited.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        old_quantity = instance.share_quantity
+        new_quantity = request.data.get('share_quantity')
+
+        response = super().partial_update(request, *args, **kwargs)
+
+        # Handle share reservation changes
+        if new_quantity and instance.holding:
+            new_quantity = Decimal(str(new_quantity))
+            if new_quantity > old_quantity:
+                # Reserve additional shares
+                diff = new_quantity - old_quantity
+                instance.holding.reserve_shares(diff)
+            elif new_quantity < old_quantity:
+                # Release excess shares
+                diff = old_quantity - new_quantity
+                instance.holding.release_shares(diff)
+
+        return response
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
