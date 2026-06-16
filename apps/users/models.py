@@ -101,9 +101,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         help_text=_("Hashed backup codes for 2FA recovery.")
     )
     preferred_language = models.CharField(max_length=10, default='en', choices=[('en', 'English'), ('sw', 'Kiswahili')])
-
-    # Renamed from notification_preferences to notification_settings
-    # to avoid conflict with NotificationPreference reverse relation
+    password_reset_token_used = models.BooleanField(
+        default=False,
+        help_text=_("Whether the current password reset token has been used.")
+    )
     notification_settings = models.JSONField(
         default=dict,
         help_text=_("User's notification channel preferences as a JSON object.")

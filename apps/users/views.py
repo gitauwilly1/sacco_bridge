@@ -331,6 +331,7 @@ class PasswordChangeView(APIView):
         user = request.user
         user.set_password(serializer.validated_data['new_password'])
         user.save(update_fields=['password'])
+        user.password_reset_token_used = False
         logger.info(f"Password changed for user {user.email}")
         return Response({'success': True, 'data': {'message': _('Password changed.')}})
 
@@ -666,10 +667,21 @@ class PasswordResetConfirmView(APIView):
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Check if token was already used
+        if user.password_reset_token_used:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'token_used',
+                    'message': _('This reset link has already been used. Please request a new one.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         user.set_password(new_password)
         user.failed_login_attempts = 0
         user.account_locked_until = None
-        user.save()
+        user.password_reset_token_used = True
+        user.save(update_fields=['password_reset_token_used'])
 
         logger.info(f"Password reset completed for user {user.email}")
 
