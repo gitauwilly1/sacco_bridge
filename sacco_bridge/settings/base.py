@@ -633,3 +633,10 @@ REQUEST_TIMEOUT = 120
 
 # Gunicorn timeout
 GUNICORN_TIMEOUT = 120
+
+# File upload settings - stream to disk above 2.5MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB
+FILE_UPLOAD_HANDLERS = [
+    'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+]
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB
