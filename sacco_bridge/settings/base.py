@@ -123,7 +123,19 @@ ASGI_APPLICATION = 'sacco_bridge.asgi.application'
 
 # Database configuration
 DATABASES = {
-    'default': env.db('DATABASE_URL')
+    'default': {
+        **env.db('DATABASE_URL'),
+        'CONN_MAX_AGE': 300,
+        'CONN_HEALTH_CHECKS': True,
+        'OPTIONS': {
+            'connect_timeout': 10,
+            'options': '-c statement_timeout=30000',
+            'keepalives': 1,
+            'keepalives_idle': 30,
+            'keepalives_interval': 10,
+            'keepalives_count': 5,
+        },
+    }
 }
 
 # Redis configuration
