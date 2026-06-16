@@ -6,12 +6,11 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
-      python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal activity reports scoring escrow webhooks
+      python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal reports activity webhooks scoring escrow
       python manage.py migrate
       python manage.py create_roles
       python manage.py create_notification_templates
       python manage.py create_admin
-      python manage.py seed_data
     startCommand: |
       celery -A sacco_bridge worker -l info -Q celery,settlements,analytics,maintenance,notifications,payments --concurrency=1 --detach &
       gunicorn sacco_bridge.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120
@@ -47,6 +46,10 @@ services:
         value: django.core.mail.backends.smtp.EmailBackend
       - key: ENCRYPTION_KEY
         value: your-generated-encryption-key
+      - key: ADMIN_EMAIL
+        value: admin@saccobridge.co.ke
+      - key: ADMIN_PASSWORD
+        value: AdminPass@2026
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
@@ -81,10 +84,6 @@ services:
         value: gemini-1.5-flash
       - key: SENTRY_DSN
         sync: false
-      - key: ADMIN_EMAIL
-        value: admin@saccobridge.co.ke
-      - key: ADMIN_PASSWORD
-        value: AdminPass@2026
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY

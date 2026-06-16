@@ -67,7 +67,7 @@ jobs:
       CLOUDINARY_API_SECRET: ci-test-secret
       RECAPTCHA_SITE_KEY: ''
       RECAPTCHA_SECRET_KEY: ''
-      
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -86,7 +86,7 @@ jobs:
 
       - name: Run migrations
         run: |
-          python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal activity reports scoring escrow webhooks
+          python manage.py makemigrations core users chamas investments transactions notifications analytics chatbot mpesa receipts legal reports activity webhooks scoring escrow
           python manage.py migrate
 
       - name: Run tests
