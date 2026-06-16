@@ -1,6 +1,7 @@
 import logging
 from celery import shared_task
 from django.utils import timezone
+from apps.notifications.services import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -268,29 +269,30 @@ def queue_bulk_notification(self, user_ids, category, title, body, priority='MED
     from apps.users.models import User
     from apps.notifications.models import NotificationPriority
 
-    batch_size = 50
+    CHUNK_SIZE = 100
     processed = 0
     failed = 0
 
-    for i in range(0, len(user_ids), batch_size):
-        batch = user_ids[i:i + batch_size]
-        users = User.objects.filter(id__in=batch, is_active=True)
+    for i in range(0, len(user_ids), CHUNK_SIZE):
+        chunk = user_ids[i:i + CHUNK_SIZE]
+        users = User.objects.filter(id__in=chunk, is_active=True)
 
         for user in users:
             try:
-                queue_notification.delay(
-                    user_id=str(user.id),
+                NotificationService.create_notification(
+                    user=user,
                     category=category,
                     title=title,
                     body=body,
-                    priority=priority,
+                    priority=getattr(NotificationPriority, priority, NotificationPriority.MEDIUM),
                     action_url=action_url,
                     action_text=action_text,
-                    data=data,
+                    data=data or {},
                 )
                 processed += 1
             except Exception as e:
-                logger.error(f"Failed to queue notification for user {user.id}: {e}")
+                logger.error(f"Failed to notify user {user.id}: {e}")
                 failed += 1
 
+    logger.info(f"Bulk notification complete: {processed} sent, {failed} failed")
     return {'processed': processed, 'failed': failed}
