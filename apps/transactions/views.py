@@ -81,6 +81,38 @@ class SettlementViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
                 }
             }, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=False, methods=['post'])
+    def create_settlement(self, request):
+        connection_id = request.data.get('connection_id')
+        
+        if connection_id:
+            existing = SettlementIntent.objects.filter(
+                connection_id=connection_id,
+                state__in=['MATCH_PROPOSED', 'INTENT_LOCKED', 'BUYER_DEBIT_INITIATED', 
+                           'BUYER_DEBIT_CONFIRMED', 'SELLER_CREDIT_INITIATED', 
+                           'SELLER_CREDIT_CONFIRMED'],
+                is_deleted=False,
+            ).exists()
+            
+            if existing:
+                return Response({
+                    'success': False,
+                    'error': {
+                        'code': 'duplicate_settlement',
+                        'message': _('An active settlement already exists for this connection.')
+                    }
+                }, status=status.HTTP_409_CONFLICT)
+        
+        serializer = SettlementIntentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        settlement = serializer.save()
+        
+        return Response({
+            'success': True,
+            'data': SettlementIntentSerializer(settlement).data,
+            'message': _('Settlement created.'),
+        }, status=status.HTTP_201_CREATED)
+
 
 @extend_schema_view(
     list=extend_schema(tags=['Settlements'], summary='List disputed settlements'),

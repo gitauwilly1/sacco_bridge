@@ -4,6 +4,7 @@ from rest_framework.exceptions import AuthenticationFailed as DRFAuthenticationF
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -193,5 +194,21 @@ def custom_exception_handler(exc, context):
                 'timestamp': str(timezone.now()),
             }
         }
+
+    # In production, don't expose stack traces
+    if not settings.DEBUG:
+        return Response(
+            {
+                'success': False,
+                'error': {
+                    'code': 'server_error',
+                    'message': 'An unexpected error occurred. Our team has been notified.',
+                },
+                'meta': {
+                    'timestamp': str(timezone.now()),
+                }
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
     return response

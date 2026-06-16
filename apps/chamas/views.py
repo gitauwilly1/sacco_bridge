@@ -185,6 +185,13 @@ class ContributionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         with transaction.atomic():
             contribution = serializer.save()
+            
+            # Verify the member belongs to this chama
+            if contribution.member.chama_id != contribution.chama_id:
+                raise ChamaMembershipError(
+                    _('This member does not belong to this chama.')
+                )
+            
             payment_ref = serializer.validated_data.get('payment_reference', '')
 
             if not contribution.chama.require_contribution_verification:

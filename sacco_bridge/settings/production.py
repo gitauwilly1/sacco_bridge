@@ -53,3 +53,6 @@ if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
 
 # Firebase
 FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', '')
+
+# Never expose stack traces in production
+REST_FRAMEWORK['EXCEPTION_HANDLER'] = 'apps.core.exceptions.custom_exception_handler'
