@@ -386,6 +386,25 @@ class LiquidityRequestViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Cancel any associated escrow
+        from apps.escrow.models import EscrowAccount
+        from apps.escrow.services import EscrowService
+
+        escrow = EscrowAccount.objects.filter(
+            settlement__connection__liquidity_request=liquidity_request,
+            status__in=['CREATED', 'FUNDED', 'HELD'],
+        ).first()
+
+        if escrow:
+            EscrowService.cancel_escrow(escrow, 'Liquidity request cancelled by seller')
+
+        # Cancel any active settlement
+        from apps.transactions.models import SettlementIntent, SettlementState
+        SettlementIntent.objects.filter(
+            connection__liquidity_request=liquidity_request,
+            state__in=['MATCH_PROPOSED', 'INTENT_LOCKED', 'BUYER_DEBIT_INITIATED'],
+        ).update(state=SettlementState.REVERSED, reversed_at=timezone.now())
+
         liquidity_request.status = LiquidityRequestStatus.CANCELLED
         liquidity_request.save()
 
@@ -397,9 +416,8 @@ class LiquidityRequestViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         return Response({
             'success': True,
             'data': {},
-            'message': _('Liquidity request cancelled. Shares released.')
+            'message': _('Liquidity request cancelled. Shares released.'),
         })
-
 
 @extend_schema_view(
     list=extend_schema(tags=['Investments'], summary='Browse active liquidity requests'),

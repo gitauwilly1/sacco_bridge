@@ -29,14 +29,25 @@ def assess_settlement(sender, instance, created, **kwargs):
                 f"Settlement {instance.uuid} BLOCKED by fraud detection "
                 f"(score={assessment.risk_score})"
             )
-        elif assessment.recommended_action == FraudDetectionService.FraudAction.HOLD:
+        elif assessment.recommended_action == FraudAction.HOLD:
             instance.state = 'DISPUTED_MANUAL'
             instance.save()
+            
+            # Also hold escrow if it exists
+            try:
+                from apps.escrow.models import EscrowAccount
+                escrow = EscrowAccount.objects.get(settlement=instance)
+                escrow.mark_held(
+                    reason=f'Fraud detection: score {assessment.risk_score}',
+                    trigger='FRAUD_DETECTION',
+                )
+            except Exception:
+                pass  # Escrow may not exist yet
+            
             logger.warning(
                 f"Settlement {instance.uuid} HELD for review "
                 f"(score={assessment.risk_score})"
             )
-
         assessment.save()
 
     except Exception as e:

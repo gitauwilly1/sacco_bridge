@@ -2,6 +2,7 @@
 
 import logging
 from decimal import Decimal
+from time import timezone
 
 from django.db import models
 
@@ -47,6 +48,19 @@ class EscrowService:
         logger.info(f"Escrow {escrow.id} refunded to buyer")
 
     @classmethod
+    def cancel_escrow(cls, escrow, reason=''):
+        if escrow.status not in [EscrowStatus.CREATED, EscrowStatus.FUNDED, EscrowStatus.HELD]:
+            raise ValueError(f"Cannot cancel escrow in {escrow.status} state.")
+        
+        escrow.status = EscrowStatus.CANCELLED
+        escrow.hold_reason = reason or 'Liquidity request cancelled'
+        escrow.completed_at = timezone.now()
+        escrow.save()
+        
+        logger.info(f"Escrow {escrow.id} cancelled: {reason}")
+        return escrow
+
+    @classmethod
     def get_escrow_summary(cls, user):
         as_buyer = EscrowAccount.objects.filter(buyer=user)
         as_seller = EscrowAccount.objects.filter(seller=user)
@@ -68,3 +82,44 @@ class EscrowService:
                 status__in=[EscrowStatus.CREATED, EscrowStatus.FUNDED]
             ).count(),
         }
+    
+    @classmethod
+    def should_hold(cls, escrow):
+        from apps.fraud.models import TransactionRiskAssessment, RiskLevel
+
+        # Check fraud assessment
+        assessment = TransactionRiskAssessment.objects.filter(
+            transaction_reference=str(escrow.settlement.uuid)
+        ).first()
+
+        if assessment:
+            if assessment.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+                return True, assessment.risk_level, 'Fraud detection flagged'
+
+        # Large transaction hold
+        from django.conf import settings
+        large_threshold = Decimal('100000.00')
+        if escrow.amount >= large_threshold:
+            return True, 'LARGE_AMOUNT', f'Amount KSh {escrow.amount:,.2f} exceeds threshold'
+
+        # First transaction hold
+        previous_escrows = EscrowAccount.objects.filter(
+            buyer=escrow.buyer,
+            status=EscrowStatus.RELEASED,
+        ).count()
+
+        if previous_escrows == 0:
+            return True, 'FIRST_TRANSACTION', 'First transaction requires review'
+
+        return False, None, None
+
+    @classmethod
+    def apply_hold_if_needed(cls, escrow):
+        should_hold, trigger, reason = cls.should_hold(escrow)
+
+        if should_hold:
+            escrow.mark_held(reason=reason, trigger=trigger)
+            logger.info(f"Escrow {escrow.id} held: {reason}")
+            return True
+
+        return False
