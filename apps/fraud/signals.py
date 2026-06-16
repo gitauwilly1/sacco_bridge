@@ -1,11 +1,12 @@
 import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from apps.fraud.services import FraudDetectionService
+from apps.transactions.models import SettlementIntent
 
 logger = logging.getLogger(__name__)
-
 
 @receiver(post_save, sender='transactions.SettlementIntent')
 def assess_settlement(sender, instance, created, **kwargs):
@@ -30,25 +31,35 @@ def assess_settlement(sender, instance, created, **kwargs):
                 f"(score={assessment.risk_score})"
             )
         elif assessment.recommended_action == FraudAction.HOLD:
-            instance.state = 'DISPUTED_MANUAL'
-            instance.save()
+            from apps.transactions.models import SettlementState
             
-            # Also hold escrow if it exists
-            try:
-                from apps.escrow.models import EscrowAccount
-                escrow = EscrowAccount.objects.get(settlement=instance)
-                escrow.mark_held(
-                    reason=f'Fraud detection: score {assessment.risk_score}',
-                    trigger='FRAUD_DETECTION',
-                )
-            except Exception:
-                pass  # Escrow may not exist yet
-            
-            logger.warning(
-                f"Settlement {instance.uuid} HELD for review "
-                f"(score={assessment.risk_score})"
+            updated = SettlementIntent.objects.filter(
+                pk=instance.pk,
+                state__in=['MATCH_PROPOSED', 'INTENT_LOCKED', 'BUYER_DEBIT_INITIATED'],
+            ).update(
+                state=SettlementState.DISPUTED_MANUAL,
+                dispute_opened_at=timezone.now(),
             )
-        assessment.save()
+            
+            if updated:
+                instance.refresh_from_db()
+                
+                from apps.escrow.models import EscrowAccount
+                escrow = EscrowAccount.objects.filter(
+                    settlement=instance
+                ).first()
+                
+                if escrow and escrow.status in ['CREATED', 'FUNDED']:
+                    escrow.mark_held(
+                        reason=f'Fraud detection: score {assessment.risk_score}',
+                        trigger='FRAUD_DETECTION',
+                    )
+                
+                logger.warning(
+                    f"Settlement {instance.uuid} HELD for review "
+                    f"(score={assessment.risk_score})"
+                )
+                assessment.save()
 
     except Exception as e:
         logger.error(f"Fraud assessment failed for settlement {instance.uuid}: {e}")

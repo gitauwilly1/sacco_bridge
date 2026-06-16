@@ -12,6 +12,10 @@ def auto_underwrite_loan(sender, instance, created, **kwargs):
     if not created:
         return
 
+    from apps.scoring.models import LoanUnderwriting
+    if LoanUnderwriting.objects.filter(loan=instance).exists():
+        return
+
     try:
         UnderwritingService.evaluate_loan(instance)
     except Exception as e:

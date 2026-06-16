@@ -14,6 +14,7 @@ from apps.users.views import (
     PhoneNumberUpdateView,
     ProfilePictureUploadView,
     TransactionLimitsView,
+    UnifiedAuditView,
     UserProfileDetailView,
     UserProfileView,
 )
@@ -35,4 +36,5 @@ urlpatterns = [
     path('deletion-requests/', DeletionRequestView.as_view(), name='deletion-requests'),
     path('admin/deletion-requests/', AdminDeletionReviewView.as_view(), name='admin-deletion-requests'),
     path('admin/deletion-requests/<uuid:pk>/review/', AdminDeletionReviewView.as_view(), name='admin-deletion-review'),
+    path('admin/unified-audit/', UnifiedAuditView.as_view(), name='admin-unified-audit'),
 ]

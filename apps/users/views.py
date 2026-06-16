@@ -1650,3 +1650,87 @@ class AdminDeletionReviewView(APIView):
             'success': False,
             'error': {'code': 'invalid_action', 'message': _('Action must be approve or reject.')}
         }, status=status.HTTP_400_BAD_REQUEST)
+
+class UnifiedAuditView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
+
+    @extend_schema(
+        tags=['Admin'],
+        summary='Unified audit trail',
+        description='Complete system audit combining all event sources.',
+        parameters=[
+            OpenApiParameter(name='user_id', description='Filter by user', type=str),
+            OpenApiParameter(name='model', description='Filter by model name', type=str),
+            OpenApiParameter(name='action', description='Filter by action type', type=str),
+            OpenApiParameter(name='days', description='Last N days (default 7)', type=int),
+            OpenApiParameter(name='export', description='Export as CSV', type=bool),
+        ]
+    )
+    def get(self, request):
+        from apps.activity.models import ActivityLog
+
+        user_id = request.query_params.get('user_id')
+        days = int(request.query_params.get('days', 7))
+        export = request.query_params.get('export', '').lower() == 'true'
+
+        cutoff = timezone.now() - timezone.timedelta(days=days)
+
+        # Use database-level pagination on the primary source (ActivityLog)
+        activities = ActivityLog.objects.filter(
+            created_at__gte=cutoff
+        ).select_related('user', 'chama', 'sacco')
+
+        if user_id:
+            activities = activities.filter(user_id=user_id)
+
+        activities = activities.order_by('-created_at')
+
+        # Export mode: load more records for CSV download
+        if export:
+            activities = activities[:500]
+            events = []
+            for a in activities:
+                events.append({
+                    'timestamp': a.created_at.isoformat(),
+                    'source': 'ACTIVITY',
+                    'user': a.user.get_full_name(),
+                    'user_email': a.user.email,
+                    'action': a.get_activity_type_display(),
+                    'description': a.title,
+                    'details': a.description,
+                    'reference': str(a.reference_id) if a.reference_id else None,
+                })
+
+            import csv
+            from django.http import HttpResponse
+
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="audit_trail.csv"'
+            writer = csv.writer(response)
+            writer.writerow(['Timestamp', 'Source', 'User', 'Email', 'Action', 'Description', 'Details', 'Reference'])
+            for e in events:
+                writer.writerow([
+                    e['timestamp'], e['source'], e['user'], e['user_email'],
+                    e['action'], e['description'], e['details'], e['reference'],
+                ])
+            return response
+
+        # Normal paginated view
+        paginator = SmallPagination()
+        page = paginator.paginate_queryset(activities, request)
+
+        events = []
+        for a in page:
+            events.append({
+                'timestamp': a.created_at.isoformat(),
+                'source': 'ACTIVITY',
+                'user': a.user.get_full_name(),
+                'user_email': a.user.email,
+                'action': a.get_activity_type_display(),
+                'description': a.title,
+                'details': a.description,
+                'reference': str(a.reference_id) if a.reference_id else None,
+            })
+
+        return paginator.get_paginated_response(events)
