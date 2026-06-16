@@ -180,3 +180,63 @@ def update_chama_health_scores(self):
 
     logger.info(f"Health scores updated for {updated}/{chamas.count()} chamas")
     return {'updated': updated}
+
+@shared_task(
+    name='apps.chamas.tasks.detect_loan_defaults',
+    bind=True,
+    max_retries=1,
+)
+def detect_loan_defaults(self):
+    """Detect and mark defaulted loans."""
+    from apps.chamas.models import Loan, LoanStatus
+    from apps.notifications.services import NotificationService
+    from apps.notifications.models import NotificationCategory, NotificationPriority
+
+    logger.info("Starting loan default detection...")
+
+    cutoff = timezone.now() - timezone.timedelta(days=30)
+
+    overdue_loans = Loan.objects.filter(
+        status__in=[LoanStatus.DISBURSED, LoanStatus.PARTIALLY_REPAID],
+        due_date__lt=cutoff.date(),
+        is_deleted=False,
+    ).select_related('borrower__user', 'chama')
+
+    defaulted_count = 0
+
+    for loan in overdue_loans:
+        try:
+            loan.mark_defaulted('Auto-detected: 30+ days past due date')
+
+            # Notify chama admins
+            admins = loan.chama.memberships.filter(
+                is_active=True,
+                role__in=['CHAIRPERSON', 'TREASURER', 'SECRETARY'],
+            ).select_related('user')
+
+            for admin in admins:
+                NotificationService.create_notification(
+                    user=admin.user,
+                    category=NotificationCategory.CHAMA_LOAN,
+                    title=f'Loan Defaulted - {loan.chama.name}',
+                    body=f'Loan of KSh {loan.principal:,.2f} by {loan.borrower.user.get_full_name()} has been marked as defaulted.',
+                    priority=NotificationPriority.URGENT,
+                    action_url=f'/chamas/{loan.chama.id}/loans/{loan.id}/',
+                )
+
+            # Notify borrower
+            NotificationService.create_notification(
+                user=loan.borrower.user,
+                category=NotificationCategory.CHAMA_LOAN,
+                title='Loan Defaulted',
+                body=f'Your loan of KSh {loan.principal:,.2f} in {loan.chama.name} has been marked as defaulted. This affects your credit score.',
+                priority=NotificationPriority.URGENT,
+            )
+
+            defaulted_count += 1
+
+        except Exception as e:
+            logger.error(f"Failed to default loan {loan.id}: {e}")
+
+    logger.info(f"Default detection complete: {defaulted_count} loans defaulted")
+    return {'defaulted': defaulted_count}

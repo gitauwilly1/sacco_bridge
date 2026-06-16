@@ -174,6 +174,11 @@ urlpatterns = [
         LoanViewSet.as_view({'post': 'restructure'}),
         name='chama-loan-restructure'
     ),
-    
+    path(
+        '<uuid:chama_pk>/loans/<uuid:pk>/mark-default/',
+        LoanViewSet.as_view({'post': 'mark_default'}),
+        name='chama-loan-mark-default'
+    ),
+
     path('admin/manage/', AdminChamaManagementView.as_view(), name='admin-chama-manage'),
 ]

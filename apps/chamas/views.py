@@ -561,6 +561,31 @@ class LoanViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             'message': _('Loan restructured.'),
         })
 
+    @action(detail=True, methods=['post'])
+    def mark_default(self, request, chama_pk=None, pk=None):
+        loan = self.get_object()
+
+        if not IsChamaAdmin().has_permission(request, self):
+            raise PermissionDeniedError()
+
+        if loan.status in [LoanStatus.FULLY_REPAID, LoanStatus.DEFAULTED, LoanStatus.WRITTEN_OFF]:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_state',
+                    'message': _('This loan cannot be marked as defaulted.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        reason = request.data.get('reason', 'Manually marked by admin')
+        loan.mark_defaulted(reason)
+
+        return Response({
+            'success': True,
+            'data': LoanSerializer(loan).data,
+            'message': _('Loan marked as defaulted.'),
+        })
+
 
 @extend_schema_view(
     list=extend_schema(tags=['Meetings'], summary='List meetings'),

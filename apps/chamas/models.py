@@ -748,6 +748,18 @@ class Loan(BaseModel):
         max_digits=5, decimal_places=2, default=2.00,
         help_text=_("Discount percentage for early full repayment.")
     )
+    defaulted_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text=_("When the loan was marked as defaulted.")
+    )
+    default_reason = models.TextField(
+        blank=True, default='',
+        help_text=_("Reason for default.")
+    )
+    recovery_amount = models.DecimalField(
+        max_digits=15, decimal_places=2, default=Decimal('0.00'),
+        help_text=_("Amount recovered from member contributions.")
+    )
 
     class Meta:
         verbose_name = _('Loan')
@@ -871,6 +883,39 @@ class Loan(BaseModel):
             self.monthly_installment = (
                 self.outstanding_balance / Decimal(str(new_duration_months))
             ).quantize(Decimal('0.01'))
+
+        self.save()
+
+    def mark_defaulted(self, reason=''):
+        from decimal import Decimal
+        
+        self.status = LoanStatus.DEFAULTED
+        self.defaulted_at = timezone.now()
+        self.default_reason = reason
+
+        # Try to recover from member contributions first
+        if self.borrower.current_balance > Decimal('0'):
+            recovery = min(self.outstanding_balance, self.borrower.current_balance)
+            self.borrower.current_balance -= recovery
+            self.outstanding_balance -= recovery
+            self.recovery_amount = recovery
+            self.borrower.save(update_fields=['current_balance'])
+
+        # Update member standing
+        self.borrower.standing_score = max(
+            Decimal('0.00'),
+            self.borrower.standing_score - Decimal('2.00')
+        )
+        self.borrower.outstanding_loans -= self.outstanding_balance
+        if self.borrower.outstanding_loans < Decimal('0'):
+            self.borrower.outstanding_loans = Decimal('0')
+        self.borrower.save(update_fields=['standing_score', 'outstanding_loans'])
+
+        # Update chama
+        self.chama.outstanding_loans -= self.outstanding_balance
+        if self.chama.outstanding_loans < Decimal('0'):
+            self.chama.outstanding_loans = Decimal('0')
+        self.chama.save(update_fields=['outstanding_loans'])
 
         self.save()
 

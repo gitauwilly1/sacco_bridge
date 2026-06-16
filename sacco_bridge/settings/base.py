@@ -559,6 +559,12 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=2, minute=0, day_of_month=1),
         'options': {'queue': 'analytics'},
     },
+
+    'detect-loan-defaults': {
+        'task': 'apps.chamas.tasks.detect_loan_defaults',
+        'schedule': crontab(hour=4, minute=0),
+        'options': {'queue': 'maintenance'},
+    },
 }
 
 # Test configuration
