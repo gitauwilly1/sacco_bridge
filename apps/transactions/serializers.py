@@ -4,7 +4,8 @@ from rest_framework import serializers
 from apps.core.serializers import BaseSerializer
 from apps.transactions.models import (
     SettlementIntent, SettlementEvent, LedgerEntry,
-    SettlementReversal, SettlementState, SettlementEventTrigger
+    SettlementReversal, SettlementState, SettlementEventTrigger,
+    Dispute, DisputeReason, DisputeStatus,
 )
 
 
@@ -241,3 +242,37 @@ class DisputeResolutionSerializer(serializers.Serializer):
         required=False,
         help_text="Executive approval reference (required for force settle)"
     )
+
+class DisputeCreateSerializer(serializers.Serializer):
+    reason = serializers.ChoiceField(choices=DisputeReason.choices)
+    description = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+
+class DisputeSerializer(serializers.ModelSerializer):
+    raised_by_name = serializers.SerializerMethodField()
+    reason_display = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    settlement_uuid = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Dispute
+        fields = [
+            'id', 'settlement', 'settlement_uuid', 'raised_by',
+            'raised_by_name', 'reason', 'reason_display',
+            'description', 'status', 'status_display',
+            'resolved_by', 'resolution_notes',
+            'opened_at', 'resolved_at',
+        ]
+        read_only_fields = ['id', 'status', 'resolved_by', 'resolution_notes', 'opened_at', 'resolved_at']
+
+    def get_raised_by_name(self, obj):
+        return obj.raised_by.get_full_name()
+
+    def get_reason_display(self, obj):
+        return obj.get_reason_display()
+
+    def get_status_display(self, obj):
+        return obj.get_status_display()
+
+    def get_settlement_uuid(self, obj):
+        return str(obj.settlement.uuid)

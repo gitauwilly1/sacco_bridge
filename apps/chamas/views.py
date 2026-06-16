@@ -53,7 +53,7 @@ class ChamaViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             memberships__user=self.request.user,
             memberships__is_active=True,
             is_deleted=False
-        ).distinct().prefetch_related('memberships', 'share_classes')
+        ).distinct().prefetch_related('memberships')
 
     def get_serializer_class(self):
         if self.action == 'create':

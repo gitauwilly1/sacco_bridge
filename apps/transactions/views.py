@@ -2,6 +2,7 @@ import logging
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status, permissions, viewsets
+from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -11,12 +12,14 @@ from apps.core.pagination import SmallPagination
 from apps.core.mixins import SoftDeleteMixin
 from apps.transactions.models import (
     SettlementIntent, SettlementEvent, LedgerEntry,
-    SettlementReversal, SettlementState, DisputeResolutionType
+    SettlementReversal, SettlementState, DisputeResolutionType,
+    Dispute, DisputeReason, DisputeStatus
 )
 from apps.transactions.serializers import (
     SettlementIntentSerializer, SettlementIntentCreateSerializer,
     SettlementEventSerializer, LedgerEntrySerializer,
     SettlementReversalSerializer, DisputeResolutionSerializer,
+    DisputeSerializer, DisputeCreateSerializer
 )
 from apps.transactions.services import SettlementService
 from apps.users.permissions import IsPlatformStaff
@@ -189,3 +192,139 @@ class LedgerViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
         return LedgerEntry.objects.filter(
             models.Q(buyer=user) | models.Q(seller=user)
         ).order_by('-recorded_at')
+
+
+class RaiseDisputeView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Settlements'],
+        summary='Raise a dispute',
+        description='File a dispute on a settlement transaction.'
+    )
+    def post(self, request, pk=None):
+        try:
+            settlement = SettlementIntent.objects.get(
+                id=pk, is_deleted=False
+            )
+        except SettlementIntent.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('Settlement not found.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Check user is involved
+        if request.user != settlement.buyer and request.user != settlement.seller:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'not_involved',
+                    'message': _('You are not a party to this settlement.')
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Check settlement state
+        if settlement.state in ['LEDGER_FINALIZED', 'REVERSED', 'CLOSED_BY_TRUSTEE']:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'settlement_terminal',
+                    'message': _('Cannot dispute a finalized or reversed settlement.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check 30-minute cooling period
+        elapsed = (timezone.now() - settlement.created_at).total_seconds()
+        if elapsed < 1800:
+            wait_minutes = int((1800 - elapsed) / 60) + 1
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'cooling_period',
+                    'message': _('Please wait %(minutes)d more minutes before raising a dispute.') % {'minutes': wait_minutes}
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check for existing dispute
+        if Dispute.objects.filter(settlement=settlement, raised_by=request.user).exists():
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'already_disputed',
+                    'message': _('You have already raised a dispute on this settlement.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = DisputeCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        dispute = Dispute.objects.create(
+            settlement=settlement,
+            raised_by=request.user,
+            reason=serializer.validated_data['reason'],
+            description=serializer.validated_data.get('description', ''),
+        )
+
+        # Mark settlement as disputed
+        settlement.state = SettlementState.DISPUTED_MANUAL
+        settlement.dispute_opened_at = timezone.now()
+        settlement.save(update_fields=['state', 'dispute_opened_at'])
+
+        logger.info(
+            f"Dispute raised by {request.user.email} on settlement {settlement.uuid}"
+        )
+
+        return Response({
+            'success': True,
+            'data': DisputeSerializer(dispute).data,
+            'message': _('Dispute raised. Our team will investigate.'),
+        }, status=status.HTTP_201_CREATED)
+
+
+class MyDisputesView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Settlements'],
+        summary='My disputes',
+        description='List disputes raised by the authenticated user.'
+    )
+    def get(self, request):
+        disputes = Dispute.objects.filter(
+            raised_by=request.user, is_deleted=False
+        ).select_related('settlement').order_by('-opened_at')
+
+        paginator = SmallPagination()
+        page = paginator.paginate_queryset(disputes, request)
+        serializer = DisputeSerializer(page, many=True)
+
+        return paginator.get_paginated_response(serializer.data)
+
+
+class DisputeDetailView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Settlements'],
+        summary='Dispute details',
+        description='Get details of a specific dispute.'
+    )
+    def get(self, request, pk=None):
+        try:
+            dispute = Dispute.objects.get(
+                id=pk, raised_by=request.user, is_deleted=False
+            )
+        except Dispute.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('Dispute not found.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = DisputeSerializer(dispute)
+        return Response({
+            'success': True,
+            'data': serializer.data,
+        })

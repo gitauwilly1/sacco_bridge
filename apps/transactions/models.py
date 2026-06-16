@@ -676,3 +676,72 @@ class SettlementReversal(models.Model):
 
     def __str__(self):
         return f"Reversal for Settlement {self.settlement.uuid}"
+
+
+class DisputeReason(models.TextChoices):
+    FUNDS_DEBITED_NO_SHARES = 'FUNDS_DEBITED_NO_SHARES', _('Funds debited but shares not received')
+    SHARES_RELEASED_NO_FUNDS = 'SHARES_RELEASED_NO_FUNDS', _('Shares released but funds not credited')
+    WRONG_AMOUNT = 'WRONG_AMOUNT', _('Wrong amount deducted')
+    UNAUTHORIZED = 'UNAUTHORIZED', _('Unauthorized transaction')
+    SETTLEMENT_STUCK = 'SETTLEMENT_STUCK', _('Settlement taking too long')
+    OTHER = 'OTHER', _('Other')
+
+
+class DisputeStatus(models.TextChoices):
+    OPEN = 'OPEN', _('Open')
+    UNDER_REVIEW = 'UNDER_REVIEW', _('Under Review')
+    RESOLVED_BUYER = 'RESOLVED_BUYER', _('Resolved - Buyer')
+    RESOLVED_SELLER = 'RESOLVED_SELLER', _('Resolved - Seller')
+    REJECTED = 'REJECTED', _('Rejected')
+
+
+class Dispute(BaseModel):
+
+    settlement = models.ForeignKey(
+        SettlementIntent, on_delete=models.PROTECT, related_name='disputes'
+    )
+
+    raised_by = models.ForeignKey(
+        'users.User', on_delete=models.PROTECT, related_name='raised_disputes'
+    )
+
+    reason = models.CharField(
+        max_length=30, choices=DisputeReason.choices,
+        help_text=_("Reason for the dispute.")
+    )
+
+    description = models.TextField(
+        blank=True, default='',
+        help_text=_("Detailed description of the issue.")
+    )
+
+    status = models.CharField(
+        max_length=20, choices=DisputeStatus.choices,
+        default=DisputeStatus.OPEN, db_index=True,
+    )
+
+    resolved_by = models.ForeignKey(
+        'users.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='dispute_resolutions'
+    )
+
+    resolution_notes = models.TextField(
+        blank=True, default='',
+        help_text=_("Admin notes on resolution.")
+    )
+
+    opened_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = _('Dispute')
+        verbose_name_plural = _('Disputes')
+        ordering = ['-opened_at']
+        unique_together = ['settlement', 'raised_by']
+        indexes = [
+            models.Index(fields=['status', 'opened_at']),
+            models.Index(fields=['raised_by', 'status']),
+        ]
+
+    def __str__(self):
+        return f"Dispute by {self.raised_by.email} on {self.settlement.uuid}"
