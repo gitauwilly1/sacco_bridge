@@ -11,6 +11,8 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import AddressMixin, BaseModel
+from apps.core.fields import EncryptedCharField, EncryptedTextField
+
 
 
 class UserManager(BaseUserManager):
@@ -63,13 +65,13 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(max_length=255, unique=True, db_index=True)
-    phone_number = models.CharField(
-        max_length=20, null=True, blank=True, unique=True, db_index=True,
+    phone_number = EncryptedCharField(
+        max_length=255, null=True, blank=True, unique=True, db_index=True,
         validators=[RegexValidator(regex=r'^(?:\+?254|0)?[17]\d{8}$', message=_('Enter a valid Kenyan phone number.'))]
     )
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
-    national_id = models.CharField(max_length=20, blank=True, default='')
+    national_id = EncryptedCharField(max_length=500, blank=True, default='')
     id_verification_status = models.CharField(
         max_length=20, choices=IDVerificationStatus.choices, default=IDVerificationStatus.UNVERIFIED
     )
