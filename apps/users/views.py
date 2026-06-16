@@ -10,6 +10,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from apps.core.pagination import SmallPagination
+from apps.core.throttling import SensitiveOperationThrottle
 from apps.core.exceptions import AuthenticationFailedError, VerificationError
 from apps.users.models import LoginHistory
 from apps.users.serializers import (
@@ -205,6 +206,7 @@ class ResendVerificationView(APIView):
 
     permission_classes = [permissions.AllowAny]
     serializer_class = ResendVerificationSerializer
+    throttle_classes = [SensitiveOperationThrottle]
 
     @extend_schema(tags=['Authentication'], summary='Resend verification code')
     def post(self, request):
