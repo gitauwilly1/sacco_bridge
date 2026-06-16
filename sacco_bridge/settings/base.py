@@ -77,6 +77,7 @@ LOCAL_APPS = [
     'apps.webhooks',
     'apps.scoring',
     'apps.escrow',
+    'apps.fraud',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
