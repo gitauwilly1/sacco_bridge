@@ -98,6 +98,7 @@ MIDDLEWARE = [
     'apps.core.middleware.APIVersionMiddleware',
     'apps.core.middleware.SecurityHeadersMiddleware',
     'apps.core.middleware.IdempotencyMiddleware',
+    'apps.core.middleware.RequestTimeoutMiddleware',
 ]
 ROOT_URLCONF = 'sacco_bridge.urls'
 
@@ -608,3 +609,9 @@ TRANSACTION_LIMITS = {
         'per_transaction': 1000000,
     },
 }
+
+# Request timeout for sensitive operations (in seconds)
+REQUEST_TIMEOUT = 120
+
+# Gunicorn timeout
+GUNICORN_TIMEOUT = 120

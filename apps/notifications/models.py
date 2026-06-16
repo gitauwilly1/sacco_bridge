@@ -32,6 +32,7 @@ class NotificationCategory(models.TextChoices):
     INVESTMENT_OFFER = 'INVESTMENT_OFFER', _('Investment Offer')
     INVESTMENT_CONNECTION = 'INVESTMENT_CONNECTION', _('Investment Connection')
     SETTLEMENT = 'SETTLEMENT', _('Settlement')
+    SETTLEMENT_STATUS = 'SETTLEMENT_STATUS', _('Settlement Status Update')
     DISPUTE = 'DISPUTE', _('Dispute')
     SYSTEM = 'SYSTEM', _('System')
     SECURITY = 'SECURITY', _('Security')

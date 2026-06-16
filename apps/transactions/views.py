@@ -139,6 +139,70 @@ class SettlementViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['post'])
+    def retry(self, request, pk=None):
+        settlement = self.get_object()
+
+        if settlement.state != 'REVERSED':
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'cannot_retry',
+                    'message': _('Only reversed settlements can be retried.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not settlement.connection:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'no_connection',
+                    'message': _('No connection found for this settlement.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check no active settlement exists for this connection
+        active_exists = SettlementIntent.objects.filter(
+            connection=settlement.connection,
+            state__in=['MATCH_PROPOSED', 'INTENT_LOCKED', 'BUYER_DEBIT_INITIATED',
+                       'BUYER_DEBIT_CONFIRMED', 'SELLER_CREDIT_INITIATED',
+                       'SELLER_CREDIT_CONFIRMED', 'DISPUTED_MANUAL'],
+            is_deleted=False,
+        ).exists()
+
+        if active_exists:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'active_settlement_exists',
+                    'message': _('An active settlement already exists for this connection.')
+                }
+            }, status=status.HTTP_409_CONFLICT)
+
+        # Create new settlement from original
+        new_settlement = SettlementService.create_settlement_intent(
+            connection=settlement.connection,
+            buyer=settlement.buyer,
+            seller=settlement.seller,
+            amount=settlement.amount,
+            share_quantity=settlement.share_quantity,
+            price_per_share=settlement.price_per_share,
+            buyer_sacco_id=settlement.buyer_sacco_id,
+            buyer_sacco_name=settlement.buyer_sacco_name,
+            seller_sacco_id=settlement.seller_sacco_id,
+            seller_sacco_name=settlement.seller_sacco_name,
+        )
+
+        logger.info(
+            f"Settlement retry: {new_settlement.uuid} created from {settlement.uuid}"
+        )
+
+        return Response({
+            'success': True,
+            'data': SettlementIntentSerializer(new_settlement).data,
+            'message': _('Retry settlement created.'),
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         settlement = self.get_object()
 
@@ -370,7 +434,17 @@ class RaiseDisputeView(APIView):
     @extend_schema(
         tags=['Settlements'],
         summary='Raise a dispute',
-        description='File a dispute on a settlement transaction.'
+        description='File a dispute on a settlement transaction. Optionally attach evidence.',
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'reason': {'type': 'string'},
+                    'description': {'type': 'string'},
+                    'evidence': {'type': 'string', 'format': 'binary'},
+                }
+            }
+        }
     )
     def post(self, request, pk=None):
         try:
@@ -428,11 +502,34 @@ class RaiseDisputeView(APIView):
         serializer = DisputeCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # Handle evidence upload
+        evidence = request.FILES.get('evidence')
+        if evidence:
+            if evidence.size > 10 * 1024 * 1024:  # 10MB limit
+                return Response({
+                    'success': False,
+                    'error': {
+                        'code': 'file_too_large',
+                        'message': _('Evidence file must be under 10MB.')
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+            if evidence.content_type not in allowed_types:
+                return Response({
+                    'success': False,
+                    'error': {
+                        'code': 'invalid_format',
+                        'message': _('Only JPG, PNG, WebP, and PDF files are accepted.')
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         dispute = Dispute.objects.create(
             settlement=settlement,
             raised_by=request.user,
             reason=serializer.validated_data['reason'],
             description=serializer.validated_data.get('description', ''),
+            evidence=evidence,
         )
 
         # Mark settlement as disputed
@@ -449,7 +546,6 @@ class RaiseDisputeView(APIView):
             'data': DisputeSerializer(dispute).data,
             'message': _('Dispute raised. Our team will investigate.'),
         }, status=status.HTTP_201_CREATED)
-
 
 class MyDisputesView(APIView):
 

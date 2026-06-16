@@ -715,6 +715,12 @@ class Dispute(BaseModel):
         help_text=_("Detailed description of the issue.")
     )
 
+    evidence = models.ImageField(
+        upload_to='disputes/%Y/%m/',
+        null=True, blank=True,
+        help_text=_("Screenshot or document supporting the dispute.")
+    )
+
     status = models.CharField(
         max_length=20, choices=DisputeStatus.choices,
         default=DisputeStatus.OPEN, db_index=True,

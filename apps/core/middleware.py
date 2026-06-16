@@ -184,3 +184,50 @@ class IdempotencyMiddleware:
                 return response
 
         return self.get_response(request)
+
+class RequestTimeoutMiddleware:
+
+    SENSITIVE_PATHS = [
+        '/api/v1/transactions/settlements/',
+        '/api/v1/payments/mpesa/stk-push/',
+        '/api/v1/chamas/loans/',
+    ]
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        import signal
+
+        path = request.path
+
+        is_sensitive = any(path.startswith(p) for p in self.SENSITIVE_PATHS)
+
+        if is_sensitive and request.method in ('POST', 'PATCH', 'PUT'):
+            def timeout_handler(signum, frame):
+                raise TimeoutError('Request timed out')
+
+            try:
+                import signal
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(60)  # 60 second timeout
+                response = self.get_response(request)
+                signal.alarm(0)
+                return response
+            except TimeoutError:
+                from django.http import JsonResponse
+                return JsonResponse(
+                    {
+                        'success': False,
+                        'error': {
+                            'code': 'request_timeout',
+                            'message': 'Request timed out. Please try again.',
+                        }
+                    },
+                    status=408,
+                )
+            except Exception:
+                signal.alarm(0)
+                raise
+
+        return self.get_response(request)

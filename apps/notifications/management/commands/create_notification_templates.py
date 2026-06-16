@@ -170,6 +170,18 @@ class Command(BaseCommand):
             'default_channels': [NotificationChannel.IN_APP, NotificationChannel.PUSH, NotificationChannel.SMS],
             'default_priority': NotificationPriority.URGENT,
         },
+        {
+            'name': 'settlement_status_update',
+            'category': NotificationCategory.SETTLEMENT_STATUS,
+            'title_template': 'Settlement Status Update',
+            'body_template': 'Your settlement #{reference} is now: {status}.',
+            'sms_template': 'Settlement #{reference}: {status}.',
+            'sw_title_template': 'Sasisho la Malipo',
+            'sw_body_template': 'Malipo yako #{reference} sasa ni: {status}.',
+            'sw_sms_template': 'Malipo #{reference}: {status}.',
+            'default_channels': [NotificationChannel.IN_APP, NotificationChannel.PUSH],
+            'default_priority': NotificationPriority.MEDIUM,
+        },
 
         # SECURITY TEMPLATES
         {
