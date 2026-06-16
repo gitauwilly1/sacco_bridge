@@ -41,8 +41,17 @@ class UserActivityFeedView(APIView):
         cutoff = timezone.now() - timezone.timedelta(days=days)
         activities = activities.filter(created_at__gte=cutoff)
 
-        activities = activities.select_related('user', 'chama', 'sacco')
-        activities = activities.order_by('-created_at')
+        activities = activities.select_related(
+            'user', 'chama', 'sacco'
+        ).only(
+            'id',
+            'user__first_name', 'user__last_name', 'user__email',
+            'activity_type', 'title', 'description',
+            'chama__name', 'chama__id',
+            'sacco__name', 'sacco__id',
+            'reference_id', 'reference_type',
+            'metadata', 'created_at',
+        ).order_by('-created_at')
 
         paginator = SmallPagination()
         page = paginator.paginate_queryset(activities, request)
@@ -93,8 +102,17 @@ class ChamaActivityFeedView(APIView):
         cutoff = timezone.now() - timezone.timedelta(days=days)
         activities = activities.filter(created_at__gte=cutoff)
 
-        activities = activities.select_related('user', 'chama', 'sacco')
-        activities = activities.order_by('-created_at')
+        activities = activities.select_related(
+            'user', 'chama', 'sacco'
+        ).only(
+            'id',
+            'user__first_name', 'user__last_name', 'user__email',
+            'activity_type', 'title', 'description',
+            'chama__name', 'chama__id',
+            'sacco__name', 'sacco__id',
+            'reference_id', 'reference_type',
+            'metadata', 'created_at',
+        ).order_by('-created_at')
 
         paginator = SmallPagination()
         page = paginator.paginate_queryset(activities, request)
