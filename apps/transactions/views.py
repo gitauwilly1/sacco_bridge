@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -112,6 +113,122 @@ class SettlementViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             'data': SettlementIntentSerializer(settlement).data,
             'message': _('Settlement created.'),
         }, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['post'])
+    def validate_transaction(self, request):
+        amount = request.data.get('amount')
+        
+        try:
+            amount = Decimal(str(amount))
+        except (ValueError, TypeError):
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_amount', 'message': _('Invalid amount.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        requires_confirmation = amount > Decimal('100000.00')
+        
+        return Response({
+            'success': True,
+            'data': {
+                'amount': str(amount),
+                'requires_confirmation': requires_confirmation,
+                'threshold': '100000.00',
+                'message': _('Amounts above KSh 100,000 require additional confirmation.') if requires_confirmation else None,
+            },
+        })
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        settlement = self.get_object()
+
+        # Check user is involved
+        if request.user != settlement.buyer and request.user != settlement.seller:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'not_involved',
+                    'message': _('You are not a party to this settlement.')
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Only allow cancellation in early states
+        cancellable_states = [
+            'MATCH_PROPOSED', 'INTENT_LOCKED', 'BUYER_DEBIT_INITIATED'
+        ]
+
+        if settlement.state not in cancellable_states:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'cannot_cancel',
+                    'message': _('This settlement has progressed too far to cancel. Please raise a dispute instead.')
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Cancel the settlement
+        settlement.state = SettlementState.REVERSED
+        settlement.reversed_at = timezone.now()
+        settlement.save(update_fields=['state', 'reversed_at'])
+
+        # Release reserved shares
+        if hasattr(settlement, 'connection') and settlement.connection:
+            lr = settlement.connection.liquidity_request
+            if lr and lr.holding:
+                lr.holding.release_shares(lr.share_quantity)
+                lr.status = 'CANCELLED'
+                lr.save()
+
+        logger.info(
+            f"Settlement {settlement.uuid} cancelled by {request.user.email}"
+        )
+
+        return Response({
+            'success': True,
+            'data': SettlementIntentSerializer(settlement).data,
+            'message': _('Settlement cancelled.'),
+        })
+    
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        user = request.user
+        from django.db import models
+
+        settlements = SettlementIntent.objects.filter(
+            models.Q(buyer=user) | models.Q(seller=user),
+            is_deleted=False,
+        )
+
+        total_bought = settlements.filter(
+            buyer=user, state='LEDGER_FINALIZED'
+        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+
+        total_sold = settlements.filter(
+            seller=user, state='LEDGER_FINALIZED'
+        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+
+        pending = settlements.filter(
+            state__in=['MATCH_PROPOSED', 'INTENT_LOCKED', 'BUYER_DEBIT_INITIATED',
+                       'BUYER_DEBIT_CONFIRMED', 'SELLER_CREDIT_INITIATED',
+                       'SELLER_CREDIT_CONFIRMED']
+        ).count()
+
+        disputed = settlements.filter(
+            state='DISPUTED_MANUAL'
+        ).count()
+
+        return Response({
+            'success': True,
+            'data': {
+                'total_bought': str(total_bought),
+                'total_sold': str(total_sold),
+                'total_volume': str(total_bought + total_sold),
+                'pending_count': pending,
+                'disputed_count': disputed,
+                'completed_count': settlements.filter(state='LEDGER_FINALIZED').count(),
+                'reversed_count': settlements.filter(state='REVERSED').count(),
+            },
+        })
 
 
 @extend_schema_view(
@@ -198,6 +315,26 @@ class DisputeViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             settlement.save()
 
             SettlementService.finalize_settlement(settlement)
+
+        # Notify both parties of resolution
+        try:
+            from apps.notifications.services import NotificationService
+            from apps.notifications.models import NotificationCategory, NotificationPriority
+
+            for user in [settlement.buyer, settlement.seller]:
+                NotificationService.create_notification(
+                    user=user,
+                    category=NotificationCategory.DISPUTE,
+                    title=_('Dispute Resolved'),
+                    body=_('Dispute on transaction #%(ref)s has been resolved: %(notes)s.') % {
+                        'ref': str(settlement.uuid)[:8],
+                        'notes': notes or _('No additional notes.'),
+                    },
+                    priority=NotificationPriority.URGENT,
+                    action_url=f'/transactions/settlements/{settlement.id}/',
+                )
+        except Exception as e:
+            logger.error(f"Failed to send dispute resolution notification: {e}")
 
         return Response({
             'success': True,
