@@ -6,7 +6,6 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
-      python manage.py migrate users --fake-initial
       python manage.py migrate --noinput
       python manage.py create_roles
       python manage.py create_notification_templates
@@ -21,7 +20,7 @@ services:
         value: 3.12.0
       - key: DATABASE_URL
         fromDatabase:
-          name: sacco-bridge-db
+          name: sacco-bridge-db-v2
           property: connectionString
       - key: REDIS_URL
         fromService:
@@ -103,5 +102,5 @@ services:
     ipAllowList: []
 
 databases:
-  - name: sacco-bridge-db
+  - name: sacco-bridge-db-v2
     plan: free
