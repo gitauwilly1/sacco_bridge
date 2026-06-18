@@ -111,8 +111,30 @@ class LoginView(APIView):
         user.last_login_device = request.META.get('HTTP_USER_AGENT', '')
         user.save(update_fields=['last_login', 'last_login_ip', 'last_login_device'])
 
-        return Response({'success': True, 'data': token_data, 'message': _('Login successful')})
+        response = Response({
+            'success': True,
+            'data': {
+                'access_token': token_data['access_token'],
+                'token_type': token_data['token_type'],
+                'expires_in': token_data['expires_in'],
+                'user': token_data['user'],
+            },
+            'message': _('Login successful'),
+        })
 
+        # Set refresh token as httpOnly cookie
+        response.set_cookie(
+            key='refresh_token',
+            value=token_data['refresh_token'],
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite='Strict',
+            max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+            path='/api/v1/auth',
+        )
+
+        return response
+    
     def get_client_ip(self, request):
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
@@ -312,11 +334,20 @@ class TokenRefreshViewCustom(TokenRefreshView):
 
     @extend_schema(tags=['Authentication'], summary='Refresh JWT access token')
     def post(self, request, *args, **kwargs):
+        # Check for refresh token in body first, then cookie
+        if 'refresh' not in request.data:
+            cookie_token = request.COOKIES.get('refresh_token')
+            if cookie_token:
+                request.data['refresh'] = cookie_token
+
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
-            response.data = {'success': True, 'data': response.data, 'message': _('Token refreshed')}
+            response.data = {
+                'success': True,
+                'data': response.data,
+                'message': _('Token refreshed'),
+            }
         return response
-
 
 class LogoutView(APIView):
 
@@ -324,16 +355,28 @@ class LogoutView(APIView):
 
     @extend_schema(tags=['Authentication'], summary='User logout')
     def post(self, request):
+        # Blacklist refresh token from request body or cookie
+        refresh_token = request.data.get('refresh_token')
+        if not refresh_token:
+            refresh_token = request.COOKIES.get('refresh_token')
+
         try:
-            refresh_token = request.data.get('refresh_token')
             if refresh_token:
                 token = RefreshToken(refresh_token)
                 token.blacklist()
         except Exception:
             pass
-        return Response({'success': True, 'data': {}, 'message': _('Logged out')})
 
+        response = Response({
+            'success': True,
+            'data': {},
+            'message': _('Logged out'),
+        })
 
+        # Clear the cookie
+        response.delete_cookie('refresh_token', path='/api/v1/auth')
+
+        return response
 class PasswordChangeView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
@@ -1735,3 +1778,109 @@ class UnifiedAuditView(APIView):
             })
 
         return paginator.get_paginated_response(events)
+
+class CurrentUserView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Authentication'],
+        summary='Get current user',
+        description='Returns minimal user info for fast app initialization.'
+    )
+    def get(self, request):
+        user = request.user
+
+        return Response({
+            'success': True,
+            'data': {
+                'id': str(user.id),
+                'email': user.email,
+                'full_name': user.get_full_name(),
+                'initials': user.get_initials(),
+                'roles': list(user.user_roles.filter(is_active=True).values_list('role', flat=True)),
+                'email_verified': user.email_verified,
+                'phone_verified': user.phone_verified,
+                'two_factor_enabled': user.two_factor_enabled,
+                'trust_score': str(user.trust_score),
+                'preferred_language': user.preferred_language,
+                'profile_picture': user.profile_picture.url if user.profile_picture else None,
+            },
+        })
+class SilentRefreshView(APIView):
+
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        tags=['Authentication'],
+        summary='Silent token refresh',
+        description='Get a new access token using the refresh token from httpOnly cookie.'
+    )
+    def post(self, request):
+        refresh_token = request.COOKIES.get('refresh_token')
+
+        if not refresh_token:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'no_refresh_token',
+                    'message': _('No refresh token found. Please login again.'),
+                }
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            refresh = RefreshToken(refresh_token)
+            user_id = refresh.get('user_id')
+
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.get(id=user_id, is_active=True)
+
+            # Generate new tokens
+            new_access = refresh.access_token
+
+            response = Response({
+                'success': True,
+                'data': {
+                    'access_token': str(new_access),
+                    'token_type': 'Bearer',
+                    'expires_in': int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
+                    'user': {
+                        'id': str(user.id),
+                        'email': user.email,
+                        'full_name': user.get_full_name(),
+                        'roles': list(user.user_roles.filter(is_active=True).values_list('role', flat=True)),
+                    },
+                },
+                'message': _('Token refreshed'),
+            })
+
+            # Rotate refresh token if configured
+            if settings.SIMPLE_JWT.get('ROTATE_REFRESH_TOKENS'):
+                refresh.set_jti()
+                refresh.set_exp()
+                new_refresh = RefreshToken.for_user(user)
+
+                response.set_cookie(
+                    key='refresh_token',
+                    value=str(new_refresh),
+                    httponly=True,
+                    secure=not settings.DEBUG,
+                    samesite='Strict',
+                    max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
+                    path='/api/v1/auth',
+                )
+
+            return response
+
+        except Exception:
+            response = Response({
+                'success': False,
+                'error': {
+                    'code': 'invalid_token',
+                    'message': _('Invalid or expired session. Please login again.'),
+                }
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+            response.delete_cookie('refresh_token', path='/api/v1/auth')
+            return response
