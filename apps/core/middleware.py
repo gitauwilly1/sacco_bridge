@@ -147,13 +147,40 @@ class WebSocketAuthMiddleware:
 
 class IdempotencyMiddleware:
 
+    # Endpoints that MUST have idempotency keys
+    STRICT_ENDPOINTS = [
+        '/api/v1/transactions/settlements/',
+        '/api/v1/payments/mpesa/stk-push/',
+        '/api/v1/chamas/',
+        '/api/v1/investments/requests/',
+        '/api/v1/investments/connections/',
+        '/api/v1/escrow/',
+    ]
+
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # Only check mutation methods
         if request.method in ('POST', 'PATCH', 'PUT', 'DELETE'):
             idempotency_key = request.headers.get('X-Idempotency-Key')
+
+            # Check if endpoint requires strict idempotency
+            requires_strict = any(
+                request.path.startswith(path) for path in self.STRICT_ENDPOINTS
+            )
+
+            if requires_strict and not idempotency_key:
+                from django.http import JsonResponse
+                return JsonResponse(
+                    {
+                        'success': False,
+                        'error': {
+                            'code': 'idempotency_key_required',
+                            'message': 'X-Idempotency-Key header is required for this endpoint.',
+                        }
+                    },
+                    status=400,
+                )
 
             if idempotency_key:
                 cache_key = f'idempotency:{idempotency_key}'
@@ -165,7 +192,8 @@ class IdempotencyMiddleware:
                     from django.http import JsonResponse
                     return JsonResponse(
                         cached_response,
-                        status=cached_response.get('status', 200),
+                        status=409,
+                        headers={'X-Idempotent-Replayed': 'true'},
                     )
 
                 response = self.get_response(request)
@@ -176,14 +204,13 @@ class IdempotencyMiddleware:
                         import json
                         response_data = json.loads(response.content)
                         response_data['_idempotent'] = True
-                        cache.set(cache_key, response_data, 86400)  # 24 hours
+                        cache.set(cache_key, response_data, 86400)
                     except Exception:
                         pass
 
                 return response
 
         return self.get_response(request)
-
 class RequestTimeoutMiddleware:
 
     SENSITIVE_PATHS = [
