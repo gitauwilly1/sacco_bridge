@@ -4,6 +4,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from apps.fraud.services import FraudDetectionService
+from apps.fraud.models import FraudAction
 from apps.transactions.models import SettlementIntent
 
 logger = logging.getLogger(__name__)
