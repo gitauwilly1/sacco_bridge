@@ -394,6 +394,20 @@ SPECTACULAR_SETTINGS = {
     - M-Pesa STK push integration for mobile payments
     - Analytics dashboards with precomputed metrics
     - Comprehensive API documentation with drf-spectacular
+    
+    Authentication:
+    Include the JWT access token in the Authorization header: Bearer <token>
+    Access tokens expire after 15 minutes. Use POST /api/v1/auth/silent-refresh/
+    with the httpOnly refresh cookie to get a new access token silently.
+    
+    Idempotency:
+    Mutation endpoints support X-Idempotency-Key header. Send a unique key
+    to prevent duplicate processing on network retries and offline sync.
+    
+    Rate Limiting:
+    - Anonymous: 100 requests/hour
+    - Authenticated: 1000 requests/hour
+    - Sensitive operations: 3 requests/minute
     """,
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -490,6 +504,12 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+]
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'

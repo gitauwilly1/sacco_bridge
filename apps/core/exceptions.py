@@ -126,12 +126,12 @@ def custom_exception_handler(exc, context):
         )
 
     if isinstance(exc, DRFNotAuthenticated):
-        return Response(
+        response = Response(
             {
                 'success': False,
                 'error': {
-                    'code': 'authentication_required',
-                    'message': str(exc.detail),
+                    'code': 'token_expired',
+                    'message': _('Your session has expired. Please login again.'),
                 },
                 'meta': {
                     'timestamp': str(timezone.now()),
@@ -139,6 +139,9 @@ def custom_exception_handler(exc, context):
             },
             status=status.HTTP_401_UNAUTHORIZED
         )
+        # Add header to signal frontend should attempt silent refresh first
+        response['X-Token-Expired'] = 'true'
+        return response
 
     if isinstance(exc, DRFPermissionDenied):
         return Response(
@@ -153,6 +156,26 @@ def custom_exception_handler(exc, context):
                 }
             },
             status=status.HTTP_403_FORBIDDEN
+        )
+    
+        # Handle Throttled (rate limit)
+    from rest_framework.exceptions import Throttled
+    if isinstance(exc, Throttled):
+        wait_seconds = getattr(exc, 'wait', 60)
+        return Response(
+            {
+                'success': False,
+                'error': {
+                    'code': 'rate_limited',
+                    'message': _('Too many requests. Please try again.'),
+                },
+                'meta': {
+                    'timestamp': str(timezone.now()),
+                    'retry_after': wait_seconds,
+                }
+            },
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={'Retry-After': str(wait_seconds)},
         )
     
     # ---- 2. Handle DRF NotFound ----

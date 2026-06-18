@@ -70,10 +70,10 @@ class TestLogin:
         }, format='json')
         assert response.status_code == status.HTTP_200_OK
         assert 'access_token' in response.data['data']
-        assert 'refresh_token' in response.data['data']
-
+        # Refresh token is set as httpOnly cookie, not in response body
+        assert 'refresh_token' in response.cookies
+        
     def test_login_wrong_password(self):
-        """Wrong password should return 401."""
         response = self.client.post(self.login_url, {
             'email': 'logintest@test.com',
             'password': 'WrongPass@2026',
@@ -81,7 +81,6 @@ class TestLogin:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_login_nonexistent_user(self):
-        """Non-existent user should return 401."""
         response = self.client.post(self.login_url, {
             'email': 'noone@test.com',
             'password': 'TestPass@2026',
@@ -89,7 +88,6 @@ class TestLogin:
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_login_returns_user_data(self):
-        """Login response should include user details."""
         response = self.client.post(self.login_url, {
             'email': 'logintest@test.com',
             'password': 'TestPass@2026',
@@ -97,7 +95,8 @@ class TestLogin:
         }, format='json')
         assert 'user' in response.data['data']
         assert response.data['data']['user']['email'] == 'logintest@test.com'
-
+        # refresh_token should NOT be in body
+        assert 'refresh_token' not in response.data['data']
 
 @pytest.mark.django_db
 class TestTokenManagement:
@@ -107,38 +106,35 @@ class TestTokenManagement:
         self.user = UserFactory(email='tokentest@test.com')
         self.refresh_url = reverse('auth-token-refresh')
 
-        # Get tokens
+        # Get tokens - refresh is in cookie now
         login_resp = self.client.post(reverse('auth-login'), {
             'email': 'tokentest@test.com',
             'password': 'TestPass@2026',
             'device_info': 'Test',
         }, format='json')
         self.access_token = login_resp.data['data']['access_token']
-        self.refresh_token = login_resp.data['data']['refresh_token']
+        # Get refresh token from cookie for tests that need it
+        self.refresh_token = login_resp.cookies.get('refresh_token').value
 
     def test_refresh_token_success(self):
-        """Valid refresh token should return new access token."""
         response = self.client.post(self.refresh_url, {
             'refresh': self.refresh_token,
         }, format='json')
         assert response.status_code == status.HTTP_200_OK
 
     def test_refresh_invalid_token(self):
-        """Invalid refresh token should fail."""
         response = self.client.post(self.refresh_url, {
             'refresh': 'invalid-token',
         }, format='json')
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_authenticated_endpoint(self):
-        """Authenticated requests should succeed."""
         profile_url = reverse('user-profile')
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
         response = self.client.get(profile_url)
         assert response.status_code == status.HTTP_200_OK
 
     def test_unauthenticated_endpoint(self):
-        """Unauthenticated requests should fail with 401."""
         profile_url = reverse('user-profile')
         response = self.client.get(profile_url)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -158,10 +154,9 @@ class TestLogout:
             'device_info': 'Test',
         }, format='json')
         self.access_token = login_resp.data['data']['access_token']
-        self.refresh_token = login_resp.data['data']['refresh_token']
+        self.refresh_token = login_resp.cookies.get('refresh_token').value
 
     def test_logout_success(self):
-        """Logout should blacklist the refresh token."""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.access_token}')
         response = self.client.post(self.logout_url, {
             'refresh_token': self.refresh_token,

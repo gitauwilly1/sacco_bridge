@@ -56,3 +56,16 @@ FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', '')
 
 # Never expose stack traces in production
 REST_FRAMEWORK['EXCEPTION_HANDLER'] = 'apps.core.exceptions.custom_exception_handler'
+
+# CORS - Production frontend domains
+CORS_ALLOWED_ORIGINS = [
+    'https://app.saccobridge.co.ke',
+    'https://sacco-bridge.vercel.app',
+]
+CORS_ALLOW_CREDENTIALS = True
+
+# CSRF trusted origins
+CSRF_TRUSTED_ORIGINS = [
+    'https://app.saccobridge.co.ke',
+    'https://sacco-bridge.vercel.app',
+]

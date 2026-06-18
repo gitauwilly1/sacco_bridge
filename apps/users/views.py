@@ -1884,3 +1884,152 @@ class SilentRefreshView(APIView):
 
             response.delete_cookie('refresh_token', path='/api/v1/auth')
             return response
+
+
+class DashboardSummaryView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Users'],
+        summary='Dashboard summary',
+        description='Returns all dashboard widgets in a single optimized call.'
+    )
+    def get(self, request):
+        user = request.user
+        from django.db import models as django_models
+
+        # Chama summaries
+        from apps.chamas.models import ChamaMember
+        memberships = ChamaMember.objects.filter(
+            user=user, is_active=True
+        ).select_related('chama')
+
+        chamas_data = []
+        for m in memberships[:5]:
+            chamas_data.append({
+                'id': str(m.chama.id),
+                'name': m.chama.name,
+                'role': m.get_role_display(),
+                'my_balance': str(m.current_balance),
+                'total_savings': str(m.chama.total_savings),
+                'member_count': m.chama.memberships.filter(is_active=True).count(),
+                'health_score': str(m.chama.health_score) if m.chama.health_score else '0',
+                'health_grade': m.chama.health_score_grade or 'N/A',
+            })
+
+        # Investment overview
+        from apps.investments.models import SACCOMemberHolding
+        holdings = SACCOMemberHolding.objects.filter(
+            user=user, is_deleted=False
+        ).select_related('sacco')
+
+        total_investment_value = sum(
+            h.total_shares * h.share_class.nominal_value for h in holdings
+        )
+
+        investments_data = {
+            'total_value': str(total_investment_value),
+            'sacco_count': holdings.values('sacco').distinct().count(),
+            'holdings': [
+                {
+                    'id': str(h.id),
+                    'sacco_name': h.sacco.name,
+                    'shares': str(h.total_shares),
+                    'available': str(h.available_shares),
+                }
+                for h in holdings[:5]
+            ],
+        }
+
+        # Pending actions
+        from apps.transactions.models import SettlementIntent, SettlementState
+        pending_settlements = SettlementIntent.objects.filter(
+            django_models.Q(buyer=user) | django_models.Q(seller=user),
+            state__in=[
+                'MATCH_PROPOSED', 'INTENT_LOCKED', 'BUYER_DEBIT_INITIATED',
+                'BUYER_DEBIT_CONFIRMED', 'SELLER_CREDIT_INITIATED',
+                'SELLER_CREDIT_CONFIRMED',
+            ],
+            is_deleted=False,
+        ).count()
+
+        from apps.chamas.models import Loan, LoanStatus
+        pending_loans = Loan.objects.filter(
+            borrower__user=user,
+            status=LoanStatus.PENDING,
+            is_deleted=False,
+        ).count()
+
+        from apps.investments.models import LiquidityRequest, LiquidityRequestStatus
+        active_requests = LiquidityRequest.objects.filter(
+            seller=user,
+            status=LiquidityRequestStatus.ACTIVE,
+            is_deleted=False,
+        ).count()
+
+        from apps.transactions.models import Dispute, DisputeStatus
+        open_disputes = Dispute.objects.filter(
+            raised_by=user,
+            status=DisputeStatus.OPEN,
+            is_deleted=False,
+        ).count()
+
+        pending_actions = {
+            'pending_settlements': pending_settlements,
+            'pending_loan_approvals': pending_loans,
+            'active_liquidity_requests': active_requests,
+            'open_disputes': open_disputes,
+            'total_pending': pending_settlements + pending_loans + active_requests + open_disputes,
+        }
+
+        # Notification count
+        from apps.notifications.services import NotificationService
+        unread_notifications = NotificationService.get_unread_count(user)
+
+        # Recent activity
+        from apps.activity.models import ActivityLog
+        recent_activity = ActivityLog.objects.filter(
+            user=user
+        ).select_related('chama', 'sacco').order_by('-created_at')[:5]
+
+        activity_data = []
+        for a in recent_activity:
+            activity_data.append({
+                'id': str(a.id),
+                'type': a.activity_type,
+                'type_display': a.get_activity_type_display(),
+                'title': a.title,
+                'chama_name': a.chama.name if a.chama else None,
+                'created_at': a.created_at.isoformat(),
+                'time_ago': self._time_ago(a.created_at),
+            })
+
+        return Response({
+            'success': True,
+            'data': {
+                'user': {
+                    'full_name': user.get_full_name(),
+                    'trust_score': str(user.trust_score),
+                },
+                'chamas': chamas_data,
+                'investments': investments_data,
+                'pending_actions': pending_actions,
+                'unread_notifications': unread_notifications,
+                'recent_activity': activity_data,
+            },
+        })
+
+    def _time_ago(self, dt):
+        now = timezone.now()
+        diff = now - dt
+
+        if diff.days > 7:
+            return dt.strftime('%d %b')
+        elif diff.days > 0:
+            return f'{diff.days}d ago'
+        elif diff.seconds > 3600:
+            return f'{diff.seconds // 3600}h ago'
+        elif diff.seconds > 60:
+            return f'{diff.seconds // 60}m ago'
+        return 'Just now'
