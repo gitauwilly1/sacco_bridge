@@ -1,5 +1,5 @@
 from decimal import Decimal
-
+import uuid
 import pytest
 from django.urls import reverse
 from rest_framework import status
@@ -37,7 +37,10 @@ class TestChamaCRUD:
             'late_fee_amount': '100.00',
             'grace_period_days': 3,
         }
-        response = self.client.post(self.chama_url, data, format='json')
+        response = self.client.post(
+            self.chama_url, data, format='json',
+            HTTP_X_IDEMPOTENCY_KEY=str(uuid.uuid4())
+        )
         assert response.status_code == status.HTTP_201_CREATED
         # DRF ModelViewSet returns serializer data directly
         assert response.data['name'] == 'Test Chama'
@@ -86,7 +89,10 @@ class TestContributions:
             'period_end': '2026-06-07',
             'notes': 'Test',
         }
-        response = self.client.post(url, data, format='json')
+        response = self.client.post(
+            url, data, format='json',
+            HTTP_X_IDEMPOTENCY_KEY=str(uuid.uuid4())
+        )
         assert response.status_code == status.HTTP_201_CREATED
 
     def test_bulk_contribution(self):
@@ -113,7 +119,10 @@ class TestContributions:
                 },
             ]
         }
-        response = self.client.post(url, data, format='json')
+        response = self.client.post(
+            url, data, format='json',
+            HTTP_X_IDEMPOTENCY_KEY=str(uuid.uuid4())
+        )
         assert response.status_code == status.HTTP_200_OK
         assert response.data['data']['success_count'] == 2
 
@@ -143,7 +152,10 @@ class TestLoans:
             'duration_months': 3,
             'purpose': 'Test loan',
         }
-        response = self.client.post(url, data, format='json')
+        response = self.client.post(
+            url, data, format='json',
+            HTTP_X_IDEMPOTENCY_KEY=str(uuid.uuid4())
+        )
         assert response.status_code == status.HTTP_201_CREATED
 
     def test_approve_loan(self):
@@ -157,7 +169,10 @@ class TestLoans:
             'chama_pk': self.chama.id,
             'pk': loan.id,
         })
-        response = self.client.post(url)
+        response = self.client.post(
+            url,
+            HTTP_X_IDEMPOTENCY_KEY=str(uuid.uuid4())
+        )
         assert response.status_code == status.HTTP_200_OK
 
     def test_disburse_loan(self):
@@ -170,7 +185,10 @@ class TestLoans:
             'chama_pk': self.chama.id,
             'pk': loan.id,
         })
-        response = self.client.post(url)
+        response = self.client.post(
+            url,
+            HTTP_X_IDEMPOTENCY_KEY=str(uuid.uuid4())
+        )
         assert response.status_code == status.HTTP_200_OK
 
     def test_repay_loan(self):
@@ -189,7 +207,10 @@ class TestLoans:
             'payment_method': 'MPESA',
             'payment_reference': 'REP-TEST',
         }
-        response = self.client.post(url, data, format='json')
+        response = self.client.post(
+            url, data, format='json',
+            HTTP_X_IDEMPOTENCY_KEY=str(uuid.uuid4())
+        )
         assert response.status_code == status.HTTP_200_OK
 
 
@@ -230,7 +251,10 @@ class TestPermissions:
                 {'member_id': '00000000-0000-0000-0000-000000000000', 'amount': 100}
             ]
         }
-        response = self.client.post(url, data, format='json')
+        response = self.client.post(
+            url, data, format='json',
+            HTTP_X_IDEMPOTENCY_KEY=str(uuid.uuid4())
+        )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_platform_staff_bypass_verification(self):
