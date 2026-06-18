@@ -36,6 +36,7 @@ from apps.chamas.serializers import (
     LoanSerializer,
     MeetingAttendanceSerializer,
     MeetingSerializer,
+    PollCreateSerializer,
     PollSerializer,
     VoteSerializer,
 )
@@ -45,6 +46,7 @@ from apps.core.exceptions import (
     LoanEligibilityError,
     PermissionDeniedError,
 )
+from apps.users.services import AuthenticationService
 from apps.core.mixins import SoftDeleteMixin
 from apps.core.pagination import SmallPagination
 from apps.users.permissions import IsChamaAdmin, IsPlatformStaff

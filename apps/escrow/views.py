@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from django.utils.translation import gettext_lazy as _
 from apps.escrow.models import EscrowAccount, EscrowStatus
 from apps.escrow.serializers import EscrowAccountSerializer
 from apps.escrow.services import EscrowService

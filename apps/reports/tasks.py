@@ -3,7 +3,7 @@ import io
 import logging
 from datetime import datetime
 from decimal import Decimal
-
+from django.db import models
 from celery import shared_task
 from django.core.files.base import ContentFile
 from django.utils import timezone

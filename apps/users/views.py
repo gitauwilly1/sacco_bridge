@@ -1263,6 +1263,7 @@ class AuditLogView(APIView):
 
         try:
             # Find the content type
+            from django.db import models
             content_type = ContentType.objects.get(
                 models.Q(app_label='chamas', model=model_name.lower()) |
                 models.Q(app_label='investments', model=model_name.lower()) |
