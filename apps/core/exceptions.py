@@ -1,19 +1,23 @@
 import logging
+import traceback
 
 from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed as DRFAuthenticationFailed
-from rest_framework.exceptions import NotAuthenticated as DRFNotAuthenticated
-from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied
+from rest_framework.exceptions import (
+    AuthenticationFailed as DRFAuthenticationFailed,
+    NotAuthenticated as DRFNotAuthenticated,
+    PermissionDenied as DRFPermissionDenied,
+    ValidationError as DRFValidationError,
+    NotFound as DRFNotFound,
+)
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
 logger = logging.getLogger(__name__)
 
 
-class SaccoBridgeException(Exception):
-
+class SaccoBridgeException(Exception):    
     def __init__(self, message, code=None, status_code=None):
         self.message = message
         self.code = code or 'error'
@@ -22,65 +26,97 @@ class SaccoBridgeException(Exception):
 
 
 class InsufficientFundsError(SaccoBridgeException):
-
     def __init__(self, message="Insufficient funds to complete the transaction."):
-        super().__init__(message=message, code='insufficient_funds', status_code=status.HTTP_402_PAYMENT_REQUIRED)
+        super().__init__(
+            message=message,
+            code='insufficient_funds',
+            status_code=status.HTTP_402_PAYMENT_REQUIRED
+        )
 
 
 class SettlementError(SaccoBridgeException):
-
     def __init__(self, message="Settlement failed.", settlement_id=None):
         self.settlement_id = settlement_id
         detail = f"{message} Settlement ID: {settlement_id}" if settlement_id else message
-        super().__init__(message=detail, code='settlement_error', status_code=status.HTTP_409_CONFLICT)
+        super().__init__(
+            message=detail,
+            code='settlement_error',
+            status_code=status.HTTP_409_CONFLICT
+        )
 
 
 class VerificationError(SaccoBridgeException):
-
     def __init__(self, message="Verification failed."):
-        super().__init__(message=message, code='verification_error', status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        super().__init__(
+            message=message,
+            code='verification_error',
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
 
 
 class ChamaMembershipError(SaccoBridgeException):
-
     def __init__(self, message="Chama membership error."):
-        super().__init__(message=message, code='chama_membership_error', status_code=status.HTTP_403_FORBIDDEN)
+        super().__init__(
+            message=message,
+            code='chama_membership_error',
+            status_code=status.HTTP_403_FORBIDDEN
+        )
 
 
 class LoanEligibilityError(SaccoBridgeException):
-
     def __init__(self, message="Member is not eligible for a loan."):
-        super().__init__(message=message, code='loan_eligibility_error', status_code=status.HTTP_403_FORBIDDEN)
+        super().__init__(
+            message=message,
+            code='loan_eligibility_error',
+            status_code=status.HTTP_403_FORBIDDEN
+        )
 
 
 class DuplicateRequestError(SaccoBridgeException):
-
     def __init__(self, message="This request has already been processed."):
-        super().__init__(message=message, code='duplicate_request', status_code=status.HTTP_409_CONFLICT)
+        super().__init__(
+            message=message,
+            code='duplicate_request',
+            status_code=status.HTTP_409_CONFLICT
+        )
 
 
 class AuthenticationFailedError(SaccoBridgeException):
-
     def __init__(self, message="Authentication failed."):
-        super().__init__(message=message, code='authentication_failed', status_code=status.HTTP_401_UNAUTHORIZED)
+        super().__init__(
+            message=message,
+            code='authentication_failed',
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
 
 
 class PermissionDeniedError(SaccoBridgeException):
-
     def __init__(self, message="You do not have permission to perform this action."):
-        super().__init__(message=message, code='permission_denied', status_code=status.HTTP_403_FORBIDDEN)
+        super().__init__(
+            message=message,
+            code='permission_denied',
+            status_code=status.HTTP_403_FORBIDDEN
+        )
 
 
 def custom_exception_handler(exc, context):
     
-    # Handle DRF AuthenticationFailed (returns 401)
+    # ---- 1. Handle DRF Authentication Errors ----
     if isinstance(exc, DRFAuthenticationFailed):
+        # Extract the message properly
+        if isinstance(exc.detail, dict):
+            message = str(exc.detail)
+            code = 'authentication_failed'
+        else:
+            message = str(exc.detail)
+            code = getattr(exc.detail, 'code', 'authentication_failed') if hasattr(exc, 'detail') else 'authentication_failed'
+        
         return Response(
             {
                 'success': False,
                 'error': {
-                    'code': getattr(exc.detail, 'code', 'authentication_failed') if hasattr(exc.detail, 'code') else 'authentication_failed',
-                    'message': str(exc.detail) if not hasattr(exc.detail, 'code') else str(exc.detail),
+                    'code': code,
+                    'message': message,
                 },
                 'meta': {
                     'timestamp': str(timezone.now()),
@@ -89,7 +125,6 @@ def custom_exception_handler(exc, context):
             status=status.HTTP_401_UNAUTHORIZED
         )
 
-    # Handle DRF NotAuthenticated
     if isinstance(exc, DRFNotAuthenticated):
         return Response(
             {
@@ -105,7 +140,6 @@ def custom_exception_handler(exc, context):
             status=status.HTTP_401_UNAUTHORIZED
         )
 
-    # Handle DRF PermissionDenied
     if isinstance(exc, DRFPermissionDenied):
         return Response(
             {
@@ -121,7 +155,23 @@ def custom_exception_handler(exc, context):
             status=status.HTTP_403_FORBIDDEN
         )
     
-    # Handle SaccoBridge custom exceptions
+    # ---- 2. Handle DRF NotFound ----
+    if isinstance(exc, DRFNotFound):
+        return Response(
+            {
+                'success': False,
+                'error': {
+                    'code': 'not_found',
+                    'message': str(exc.detail),
+                },
+                'meta': {
+                    'timestamp': str(timezone.now()),
+                }
+            },
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # ---- 3. Handle SaccoBridge custom exceptions ----
     if isinstance(exc, SaccoBridgeException):
         return Response(
             {
@@ -137,7 +187,41 @@ def custom_exception_handler(exc, context):
             status=exc.status_code
         )
 
-    # Handle standard DRF exceptions
+    # ---- 4. Handle DRF ValidationError (400) ----
+    if isinstance(exc, DRFValidationError):
+        errors = []
+        if isinstance(exc.detail, dict):
+            for key, value in exc.detail.items():
+                if isinstance(value, list):
+                    for item in value:
+                        errors.append({
+                            'field': key,
+                            'message': str(item),
+                            'code': getattr(item, 'code', 400)
+                        })
+                else:
+                    errors.append({
+                        'field': key,
+                        'message': str(value),
+                        'code': 400
+                    })
+        
+        return Response(
+            {
+                'success': False,
+                'error': {
+                    'code': 'validation_error',
+                    'message': 'Request validation failed.',
+                    'details': errors,
+                },
+                'meta': {
+                    'timestamp': str(timezone.now()),
+                }
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # ---- 5. Handle standard DRF exceptions ----
     response = exception_handler(exc, context)
 
     if response is not None:
@@ -167,7 +251,7 @@ def custom_exception_handler(exc, context):
                         })
                 elif key == 'detail':
                     errors.append({
-                        'field': 'detail',
+                        'field': 'non_field_errors',
                         'message': str(value),
                         'code': response.status_code
                     })
@@ -197,15 +281,25 @@ def custom_exception_handler(exc, context):
                 'timestamp': str(timezone.now()),
             }
         }
+        
+        return response
 
-    # In production, don't expose stack traces
-    if not settings.DEBUG:
+    # ---- 6. Handle unhandled exceptions (500 fallback) ----
+    # Log the full exception for debugging
+    logger.error(
+        f"Unhandled exception: {str(exc)}",
+        exc_info=True,
+        extra={'path': context.get('request').path if context.get('request') else 'unknown'}
+    )
+    
+    if settings.DEBUG:
+        # In debug mode, show the actual error
         return Response(
             {
                 'success': False,
                 'error': {
                     'code': 'server_error',
-                    'message': 'An unexpected error occurred. Our team has been notified.',
+                    'message': str(exc),
                 },
                 'meta': {
                     'timestamp': str(timezone.now()),
@@ -213,5 +307,18 @@ def custom_exception_handler(exc, context):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-    return response
+    
+    # In production, return a generic error
+    return Response(
+        {
+            'success': False,
+            'error': {
+                'code': 'server_error',
+                'message': 'An unexpected error occurred. Our team has been notified.',
+            },
+            'meta': {
+                'timestamp': str(timezone.now()),
+            }
+        },
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )

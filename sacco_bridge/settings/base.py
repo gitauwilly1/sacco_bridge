@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+import sys
 import environ
 from .constants import *
 
@@ -587,7 +588,10 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # Test configuration
-if 'test' in os.environ.get('DJANGO_SETTINGS_MODULE', ''):
+if 'test' in os.environ.get('DJANGO_SETTINGS_MODULE', '') or 'pytest' in sys.modules or os.environ.get('DJANGO_TEST_DB'):
+    DEBUG = True
+    # Force Django to show full tracebacks
+    DEBUG_PROPAGATE_EXCEPTIONS = True
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -597,7 +601,17 @@ if 'test' in os.environ.get('DJANGO_SETTINGS_MODULE', ''):
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
-    
+    AFRICASTALKING_USERNAME = 'sandbox'
+    AFRICASTALKING_API_KEY = 'test-key'
+    MPESA_CONSUMER_KEY = 'test'
+    MPESA_CONSUMER_SECRET = 'test'
+    MPESA_PASSKEY = 'test'
+    MPESA_SHORTCODE = '174379'
+    MPESA_CALLBACK_URL = 'http://localhost/callback/'
+    GEMINI_API_KEY = 'test'
+    GEMINI_MODEL = 'gemini-1.5-flash'
+    FIREBASE_CREDENTIALS_PATH = '/tmp/fake.json'
+
     # Use local memory cache instead of Redis for tests
     CACHES = {
         'default': {

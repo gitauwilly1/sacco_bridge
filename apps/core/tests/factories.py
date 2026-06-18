@@ -13,7 +13,7 @@ class UserFactory(DjangoModelFactory):
         model = 'users.User'
 
     email = factory.Sequence(lambda n: f'user{n}@test.com')
-    phone_number = factory.Sequence(lambda n: f'0712{n:06d}'[:12])
+    phone_number = factory.Sequence(lambda n: f'0712{n:06d}'[:10])
     first_name = factory.Faker('first_name')
     last_name = factory.Faker('last_name')
     email_verified = True

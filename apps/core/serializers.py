@@ -1,6 +1,6 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
-
+from rest_framework.fields import empty
 from apps.core.recaptcha import ReCaptchaService
 
 
@@ -51,9 +51,15 @@ class ReCaptchaField(serializers.CharField):
         return value
 
     def run_validation(self, data):
-        value = super().run_validation(data)
-        return self.validate_recaptcha(value)
-    
+        from rest_framework.fields import empty
+        
+        # If data is empty and field is optional, use default
+        if data is empty and not self.required:
+            value = self.default
+        else:
+            value = super().run_validation(data)
+        
+        return self.validate_recaptcha(value)    
 class BaseSerializer(serializers.ModelSerializer):
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
