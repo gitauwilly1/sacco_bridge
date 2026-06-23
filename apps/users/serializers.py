@@ -132,7 +132,7 @@ class UserLoginSerializer(serializers.Serializer):
             user=authenticated_user,
             ip_address=self.context.get('ip_address', ''),
             user_agent=self.context.get('user_agent', ''),
-            device_type=data.get('device_info', 'unknown'),
+            device_type=data.get('device_info', 'unknown')[:50],
             login_successful=True
         )
 
