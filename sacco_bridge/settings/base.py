@@ -367,6 +367,7 @@ AXES_COOLOFF_TIME = timedelta(minutes=30)
 AXES_LOCKOUT_CALLABLE = 'apps.users.callbacks.user_locked_out'
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_PARAMETERS = ['username']
+AXES_USERNAME_FORM_FIELD = 'email'
 AXES_LOCKOUT_URL = '/api/v1/auth/locked-out/'
 
 # Spectacular settings for OpenAPI/Swagger
