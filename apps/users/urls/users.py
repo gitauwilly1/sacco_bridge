@@ -35,6 +35,7 @@ urlpatterns = [
     path('limits/', TransactionLimitsView.as_view(), name='user-limits'),
     path('deletion-requests/', DeletionRequestView.as_view(), name='deletion-requests'),
     path('admin/deletion-requests/', AdminDeletionReviewView.as_view(), name='admin-deletion-requests'),
+    path('admin/deletion-requests/<uuid:pk>/', AdminDeletionReviewView.as_view(), name='admin-deletion-request-detail'),
     path('admin/deletion-requests/<uuid:pk>/review/', AdminDeletionReviewView.as_view(), name='admin-deletion-review'),
     path('admin/unified-audit/', UnifiedAuditView.as_view(), name='admin-unified-audit'),
 ]
