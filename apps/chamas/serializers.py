@@ -240,6 +240,7 @@ class LoanCreateSerializer(serializers.ModelSerializer):
             'chama', 'borrower', 'principal', 'duration_months',
             'purpose', 'guarantors',
         ]
+        read_only_fields = ['chama', 'borrower']
 
     def validate_principal(self, value):
         if value <= Decimal('0'):
