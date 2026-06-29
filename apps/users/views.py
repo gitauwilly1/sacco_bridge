@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -1169,8 +1170,29 @@ class AdminUserManagementView(APIView):
 
     @extend_schema(tags=['Admin'], summary='[Admin] List all users')
     def get(self, request):
+        search = request.query_params.get('search', '')
+        role = request.query_params.get('role', '')
+        status_filter = request.query_params.get('status', '')
+
         from apps.core.pagination import SmallPagination
-        users = User.objects.filter(is_active=True).order_by('-date_joined')
+        users = User.objects.all().order_by('-date_joined')
+
+        if search:
+            users = users.filter(
+                Q(email__icontains=search) |
+                Q(phone_number__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search)
+            )
+
+        if role:
+            users = users.filter(user_roles__role=role, user_roles__is_active=True).distinct()
+
+        if status_filter == 'active':
+            users = users.filter(is_active=True)
+        elif status_filter == 'suspended':
+            users = users.filter(is_active=False)
+
         paginator = SmallPagination()
         page = paginator.paginate_queryset(users, request)
 
@@ -1180,15 +1202,21 @@ class AdminUserManagementView(APIView):
                 'id': str(user.id),
                 'email': user.email,
                 'phone_number': user.phone_number,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
                 'full_name': user.get_full_name(),
                 'email_verified': user.email_verified,
                 'phone_verified': user.phone_verified,
                 'id_verification_status': user.id_verification_status,
+                'kyc_status': user.id_verification_status.lower(),
                 'trust_score': str(user.trust_score),
                 'is_active': user.is_active,
+                'status': 'active' if user.is_active else 'suspended',
                 'roles': list(user.user_roles.filter(is_active=True).values_list('role', flat=True)),
                 'date_joined': user.date_joined.isoformat(),
+                'created_at': user.date_joined.isoformat(),
                 'last_login': user.last_login.isoformat() if user.last_login else None,
+                'last_active': user.last_login.isoformat() if user.last_login else None,
             })
 
         return paginator.get_paginated_response(data)
