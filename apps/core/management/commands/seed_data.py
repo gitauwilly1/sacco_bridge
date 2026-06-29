@@ -58,11 +58,11 @@ class Command(BaseCommand):
                 'trust_score': Decimal('5.00'),
             }
         )
+        admin.set_password('AdminPass@2026')
+        admin.save()
+        admin.add_role(Role.PLATFORM_ADMIN)
+        admin.add_role(Role.SUPPORT_AGENT)
         if created:
-            admin.set_password('AdminPass@2026')
-            admin.save()
-            admin.add_role(Role.PLATFORM_ADMIN)
-            admin.add_role(Role.SUPPORT_AGENT)
             self.stdout.write(f'  Created platform admin: {admin.email}')
 
     # 2. SACCOS AND SHARE CLASSES
