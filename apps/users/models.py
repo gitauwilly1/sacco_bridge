@@ -184,7 +184,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
         self.failed_login_attempts += 1
         if self.failed_login_attempts >= max_attempts:
-            self.account_locked_until = timezone.now() + timezone.timedelta(minutes=cooloff)
+            if isinstance(cooloff, timezone.timedelta):
+                self.account_locked_until = timezone.now() + cooloff
+            else:
+                self.account_locked_until = timezone.now() + timezone.timedelta(minutes=cooloff)
         self.save(update_fields=['failed_login_attempts', 'account_locked_until'])
 
     def reset_failed_login(self):
