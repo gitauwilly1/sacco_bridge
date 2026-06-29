@@ -26,7 +26,7 @@ def assess_settlement(sender, instance, created, **kwargs):
         # Apply recommended action
         assessment.applied_action = assessment.recommended_action
 
-        if assessment.recommended_action == FraudDetectionService.FraudAction.BLOCK:
+        if assessment.recommended_action == FraudAction.BLOCK:
             logger.warning(
                 f"Settlement {instance.uuid} BLOCKED by fraud detection "
                 f"(score={assessment.risk_score})"
