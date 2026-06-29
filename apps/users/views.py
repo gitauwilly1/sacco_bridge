@@ -1580,11 +1580,38 @@ class AdminDeletionReviewView(APIView):
 
     @extend_schema(
         tags=['Admin'],
-        summary='List deletion requests',
-        description='View all pending deletion requests.'
+        summary='List or retrieve deletion requests',
+        description='View all pending deletion requests or retrieve a single request.'
     )
-    def get(self, request):
+    def get(self, request, pk=None):
         from apps.core.models import DeletionRequest
+
+        if pk is not None:
+            try:
+                req = DeletionRequest.objects.select_related(
+                    'requested_by', 'reviewed_by'
+                ).get(id=pk)
+            except DeletionRequest.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'error': {'code': 'not_found', 'message': _('Request not found.')}
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            return Response({
+                'success': True,
+                'data': {
+                    'id': str(req.id),
+                    'requested_by': req.requested_by.get_full_name() if req.requested_by else '',
+                    'requested_by_email': req.requested_by.email if req.requested_by else '',
+                    'object_repr': req.object_repr,
+                    'reason': req.reason,
+                    'status': req.status,
+                    'requested_at': req.requested_at.isoformat(),
+                    'reviewed_by': req.reviewed_by.get_full_name() if req.reviewed_by else None,
+                    'review_notes': req.review_notes or '',
+                    'reviewed_at': req.reviewed_at.isoformat() if req.reviewed_at else None,
+                },
+            })
 
         status_filter = request.query_params.get('status', 'PENDING')
         requests = DeletionRequest.objects.filter(
