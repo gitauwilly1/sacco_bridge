@@ -16,8 +16,8 @@ router.register(r'disputes', DisputeViewSet, basename='dispute')
 router.register(r'ledger', LedgerViewSet, basename='ledger')
 
 urlpatterns = [
-    path('', include(router.urls)),
-    path('settlements/<uuid:pk>/dispute/', RaiseDisputeView.as_view(), name='settlement-raise-dispute'),
     path('disputes/mine/', MyDisputesView.as_view(), name='my-disputes'),
     path('disputes/<uuid:pk>/', DisputeDetailView.as_view(), name='dispute-detail'),
+    path('settlements/<uuid:pk>/dispute/', RaiseDisputeView.as_view(), name='settlement-raise-dispute'),
+    path('', include(router.urls)),
 ]
