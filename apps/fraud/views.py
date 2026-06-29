@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.utils.translation import gettext_lazy as _
 
 from apps.fraud.models import TransactionRiskAssessment, DeviceFingerprint
-from apps.fraud.serializers import RiskAssessmentSerializer
+from apps.fraud.serializers import RiskAssessmentSerializer, DeviceFingerprintSerializer
 from apps.users.permissions import IsPlatformStaff
 
 
@@ -49,6 +49,7 @@ class RiskAssessmentViewSet(viewsets.ReadOnlyModelViewSet):
 
 class DeviceTrustViewSet(viewsets.ReadOnlyModelViewSet):
 
+    serializer_class = DeviceFingerprintSerializer
     permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
 
     def get_queryset(self):
