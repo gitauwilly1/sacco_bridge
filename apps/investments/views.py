@@ -273,7 +273,7 @@ class SACCOHoldingViewSet(SoftDeleteMixin, viewsets.ReadOnlyModelViewSet):
         # Diversification score (0-100)
         num_holdings = len(holdings_data)
         max_pct = max(h['percentage'] for h in holdings_data) if holdings_data else 0
-        diversification_score = max(0, 100 - (max_pct * 1.5) + (num_holdings * 5))
+        diversification_score = max(0, 100 - (float(max_pct) * 1.5) + (num_holdings * 5))
         diversification_score = min(100, round(diversification_score))
 
         return Response({
