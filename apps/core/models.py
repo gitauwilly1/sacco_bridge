@@ -198,3 +198,151 @@ class DeletionRequest(models.Model):
         self.review_notes = notes
         self.reviewed_at = timezone.now()
         self.save()
+
+
+class ClientErrorLog(models.Model):
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    level = models.CharField(
+        max_length=10,
+        choices=[('DEBUG', 'Debug'), ('INFO', 'Info'), ('WARN', 'Warn'), ('ERROR', 'Error')],
+        default='ERROR',
+        db_index=True,
+    )
+
+    message = models.TextField()
+
+    url = models.URLField(max_length=2048, blank=True, default='')
+
+    user_agent = models.TextField(blank=True, default='')
+
+    stack = models.TextField(blank=True, default='')
+
+    extra_data = models.JSONField(default=dict, blank=True)
+
+    user = models.ForeignKey(
+        'users.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='client_errors',
+    )
+
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = 'Client Error Log'
+        verbose_name_plural = 'Client Error Logs'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.level}] {self.message[:100]}"
+
+
+class AdminApproval(models.Model):
+
+    class ActionChoices(models.TextChoices):
+        VERIFY_SACCO = 'VERIFY_SACCO', 'Verify SACCO'
+        SUSPEND_SACCO = 'SUSPEND_SACCO', 'Suspend SACCO'
+        REACTIVATE_SACCO = 'REACTIVATE_SACCO', 'Reactivate SACCO'
+        RESOLVE_DISPUTE = 'RESOLVE_DISPUTE', 'Resolve Dispute'
+        APPROVE_DELETION = 'APPROVE_DELETION', 'Approve Deletion'
+        BULK_USER_ACTION = 'BULK_USER_ACTION', 'Bulk User Action'
+        BULK_CHAMA_ACTION = 'BULK_CHAMA_ACTION', 'Bulk Chama Action'
+
+    class StatusChoices(models.TextChoices):
+        PENDING = 'PENDING', 'Pending Review'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    action = models.CharField(
+        max_length=30,
+        choices=ActionChoices.choices,
+        db_index=True,
+    )
+
+    target_content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, null=True, blank=True,
+    )
+
+    target_id = models.UUIDField(null=True, blank=True)
+
+    target_repr = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text='Human-readable description of the target.',
+    )
+
+    payload = models.JSONField(
+        default=dict, blank=True,
+        help_text='Additional data needed to execute the action.',
+    )
+
+    requested_by = models.ForeignKey(
+        'users.User', on_delete=models.CASCADE, related_name='approval_requests',
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=StatusChoices.choices,
+        default=StatusChoices.PENDING,
+        db_index=True,
+    )
+
+    reviewed_by = models.ForeignKey(
+        'users.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='approval_reviews',
+    )
+
+    review_notes = models.TextField(blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Admin Approval'
+        verbose_name_plural = 'Admin Approvals'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.action} by {self.requested_by} - {self.status}"
+
+    def approve(self, reviewed_by, notes=''):
+        from django.db import transaction
+        from apps.investments.models import SACCO
+        from apps.transactions.models import Dispute
+
+        self.status = self.StatusChoices.APPROVED
+        self.reviewed_by = reviewed_by
+        self.review_notes = notes
+        self.reviewed_at = timezone.now()
+        self.save()
+
+        # Execute the approved action
+        if self.action == self.ActionChoices.VERIFY_SACCO:
+            SACCO.objects.filter(id=self.target_id).update(
+                status='ACTIVE', verified_at=timezone.now(), verified_by=reviewed_by,
+            )
+        elif self.action == self.ActionChoices.SUSPEND_SACCO:
+            SACCO.objects.filter(id=self.target_id).update(
+                status='SUSPENDED', suspension_reason=self.payload.get('reason', ''),
+            )
+        elif self.action == self.ActionChoices.REACTIVATE_SACCO:
+            SACCO.objects.filter(id=self.target_id).update(status='ACTIVE')
+        elif self.action == self.ActionChoices.RESOLVE_DISPUTE:
+            Dispute.objects.filter(id=self.target_id).update(
+                status='RESOLVED', resolved_at=timezone.now(), resolved_by=reviewed_by,
+                resolution_notes=self.payload.get('notes', ''),
+            )
+        elif self.action == self.ActionChoices.APPROVE_DELETION:
+            obj = self.target_content_type.get_object_for_this_type(id=self.target_id)
+            if obj:
+                obj.delete()
+
+    def reject(self, reviewed_by, notes=''):
+        self.status = self.StatusChoices.REJECTED
+        self.reviewed_by = reviewed_by
+        self.review_notes = notes
+        self.reviewed_at = timezone.now()
+        self.save()

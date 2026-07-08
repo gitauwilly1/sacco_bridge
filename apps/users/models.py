@@ -264,3 +264,35 @@ class LoginHistory(models.Model):
     def __str__(self):
         status = "Success" if self.login_successful else "Failed"
         return f"{self.user.email} - {status} at {self.login_timestamp}"
+
+
+class KYCDocument(models.Model):
+
+    class DocumentType(models.TextChoices):
+        NATIONAL_ID_FRONT = 'NATIONAL_ID_FRONT', 'National ID (Front)'
+        NATIONAL_ID_BACK = 'NATIONAL_ID_BACK', 'National ID (Back)'
+        PASSPORT = 'PASSPORT', 'Passport'
+        DRIVERS_LICENSE = 'DRIVERS_LICENSE', "Driver's License"
+        SELFIE = 'SELFIE', 'Selfie Photo'
+        UTILITY_BILL = 'UTILITY_BILL', 'Utility Bill (Proof of Address)'
+
+    user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='kyc_documents')
+    document_type = models.CharField(max_length=30, choices=DocumentType.choices)
+    file = models.FileField(upload_to='kyc_documents/%Y/%m/%d/')
+    is_verified = models.BooleanField(default=False)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verified_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='kyc_verifications')
+    rejection_reason = models.TextField(blank=True, default='')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('KYC Document')
+        verbose_name_plural = _('KYC Documents')
+        ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['user', 'document_type']),
+            models.Index(fields=['is_verified']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.get_document_type_display()}"

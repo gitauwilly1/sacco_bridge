@@ -4,6 +4,7 @@ from rest_framework.routers import SimpleRouter
 from apps.chatbot.views import (
     ChatbotContextView,
     ChatSessionViewSet,
+    FAQListView,
     KnowledgeArticleViewSet,
 )
 
@@ -14,4 +15,5 @@ router.register(r'knowledge', KnowledgeArticleViewSet, basename='knowledge-artic
 urlpatterns = [
     path('', include(router.urls)),
     path('context/', ChatbotContextView.as_view(), name='chat-context'),
+    path('faq/', FAQListView.as_view(), name='faq-list'),
 ]

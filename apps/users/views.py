@@ -14,11 +14,13 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.core.exceptions import AuthenticationFailedError, VerificationError
 from apps.core.pagination import SmallPagination
 from apps.core.throttling import SensitiveOperationThrottle
-from apps.users.models import LoginHistory
+from apps.users.models import KYCDocument, LoginHistory
 from apps.users.permissions import IsPlatformStaff
 from apps.users.serializers import (
     EmailVerificationSerializer,
     GoogleAuthSerializer,
+    KYCDocumentSerializer,
+    KYCSubmitSerializer,
     LoginHistorySerializer,
     PasswordChangeSerializer,
     PasswordResetConfirmSerializer,
@@ -49,7 +51,7 @@ class RegistrationView(APIView):
 
     @extend_schema(tags=['Authentication'], summary='Register a new user', description='Creates a new user account with email and phone verification.')
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
@@ -164,7 +166,7 @@ class TwoFactorSetupView(APIView):
 
     @extend_schema(tags=['Authentication'], summary='Enable two-factor authentication')
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
         if not serializer.validated_data.get('enable'):
@@ -190,8 +192,13 @@ class TwoFactorSetupView(APIView):
     @extend_schema(tags=['Authentication'], summary='Disable two-factor authentication')
     def delete(self, request):
         totp_code = request.data.get('totp_code')
+        current_password = request.data.get('current_password', '')
+
         if not totp_code:
             return Response({'success': False, 'error': {'code': 'validation_error', 'message': _('TOTP code required.')}}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user.check_password(current_password):
+            return Response({'success': False, 'error': {'code': 'wrong_password', 'message': _('Current password is incorrect.')}}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             TwoFactorService.disable_two_factor(request.user, totp_code)
@@ -208,7 +215,7 @@ class EmailVerificationView(APIView):
 
     @extend_schema(tags=['Authentication'], summary='Verify email address')
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         user.email_verified = True
@@ -226,7 +233,7 @@ class PhoneVerificationView(APIView):
 
     @extend_schema(tags=['Authentication'], summary='Verify phone number')
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         user.phone_verified = True
@@ -245,7 +252,7 @@ class ResendVerificationView(APIView):
 
     @extend_schema(tags=['Authentication'], summary='Resend verification code')
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         method = serializer.validated_data['method']
@@ -276,7 +283,7 @@ class GoogleAuthView(APIView):
 
     @extend_schema(tags=['Authentication'], summary='Google OAuth2 login')
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         id_token = serializer.validated_data['id_token']
 
@@ -401,7 +408,7 @@ class PasswordResetRequestView(APIView):
 
     @extend_schema(tags=['Authentication'], summary='Request password reset')
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
         user = User.objects.get(email__iexact=email)
@@ -670,6 +677,166 @@ class ProfilePictureUploadView(APIView):
             'message': _('Profile picture removed.'),
         })
 
+
+
+class KYCUploadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['KYC'],
+        summary='Upload KYC document',
+        description='Upload a KYC document (ID front/back, selfie, etc.). Max 10MB. Accepted formats: JPG, PNG, PDF.',
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'document_type': {
+                        'type': 'string',
+                        'enum': ['NATIONAL_ID_FRONT', 'NATIONAL_ID_BACK', 'PASSPORT', 'DRIVERS_LICENSE', 'SELFIE', 'UTILITY_BILL'],
+                        'description': 'Type of document being uploaded'
+                    },
+                    'file': {
+                        'type': 'string',
+                        'format': 'binary',
+                        'description': 'Document file (JPG, PNG, PDF, max 10MB)'
+                    }
+                }
+            }
+        }
+    )
+    def post(self, request):
+        document_type = request.data.get('document_type')
+        file = request.FILES.get('file')
+
+        if not document_type:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_type', 'message': _('Document type is required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_types = [t[0] for t in KYCDocument.DocumentType.choices]
+        if document_type not in valid_types:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_type', 'message': _('Invalid document type.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not file:
+            return Response({
+                'success': False,
+                'error': {'code': 'missing_file', 'message': _('No file uploaded. Use key "file".')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if file.size > 10 * 1024 * 1024:
+            return Response({
+                'success': False,
+                'error': {'code': 'file_too_large', 'message': _('File size must be under 10MB.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+        if file.content_type not in allowed_types:
+            return Response({
+                'success': False,
+                'error': {'code': 'invalid_format', 'message': _('Only JPG, PNG, WebP, and PDF files are accepted.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        KYCDocument.objects.filter(user=request.user, document_type=document_type).delete()
+
+        doc = KYCDocument.objects.create(
+            user=request.user,
+            document_type=document_type,
+            file=file,
+        )
+
+        serializer = KYCDocumentSerializer(doc)
+        return Response({
+            'success': True,
+            'data': serializer.data,
+            'message': _('Document uploaded successfully.'),
+        }, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        tags=['KYC'],
+        summary='List KYC documents',
+        description='Get all KYC documents for the current user.'
+    )
+    def get(self, request):
+        docs = KYCDocument.objects.filter(user=request.user)
+        serializer = KYCDocumentSerializer(docs, many=True)
+        return Response({
+            'success': True,
+            'data': serializer.data,
+        })
+
+
+class KYCDeleteView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['KYC'],
+        summary='Delete KYC document',
+        description='Delete a specific KYC document by ID.'
+    )
+    def delete(self, request, doc_id):
+        try:
+            doc = KYCDocument.objects.get(id=doc_id, user=request.user)
+        except KYCDocument.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('Document not found.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        doc.file.delete(save=False)
+        doc.delete()
+        return Response({
+            'success': True,
+            'data': {},
+            'message': _('Document deleted.'),
+        })
+
+
+class KYCSubmitView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['KYC'],
+        summary='Submit KYC for verification',
+        description='Submit uploaded documents for admin review.'
+    )
+    def post(self, request):
+        serializer = KYCSubmitSerializer(data={}, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+
+        request.user.id_verification_status = 'PENDING'
+        request.user.save(update_fields=['id_verification_status'])
+
+        return Response({
+            'success': True,
+            'data': {'id_verification_status': 'PENDING'},
+            'message': _('KYC documents submitted for verification.'),
+        })
+
+
+class KYCStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['KYC'],
+        summary='Get KYC status',
+        description='Get current KYC verification status and uploaded documents.'
+    )
+    def get(self, request):
+        docs = KYCDocument.objects.filter(user=request.user)
+        doc_serializer = KYCDocumentSerializer(docs, many=True)
+        return Response({
+            'success': True,
+            'data': {
+                'id_verification_status': request.user.id_verification_status,
+                'documents': doc_serializer.data,
+            },
+        })
+
+
 class PasswordResetConfirmView(APIView):
 
     permission_classes = [permissions.AllowAny]
@@ -685,7 +852,7 @@ class PasswordResetConfirmView(APIView):
         from django.utils.encoding import force_str
         from django.utils.http import urlsafe_base64_decode
 
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
         token = serializer.validated_data['token']

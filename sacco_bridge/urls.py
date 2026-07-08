@@ -2,7 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
-from apps.core.views import health_check
+from apps.core.views import health_check, client_error_log, admin_approval_list, admin_approval_review
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
@@ -14,6 +14,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('health/', health_check, name='health-check'),
+    path('api/v1/log/client-error/', client_error_log, name='client-error-log'),
+    path('api/v1/admin/approvals/', admin_approval_list, name='admin-approval-list'),
+    path('api/v1/admin/approvals/<uuid:pk>/review/', admin_approval_review, name='admin-approval-review'),
 
     # API Schema and Documentation
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),

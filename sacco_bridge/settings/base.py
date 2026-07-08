@@ -256,7 +256,7 @@ SITE_ID = 1
 FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:3000')
 
 # Default from email
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@saccobridge.co.ke')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='grayshawn461@gmail.com')
 
 # CORS configuration
 CORS_ALLOWED_ORIGINS = [
@@ -367,6 +367,7 @@ AXES_COOLOFF_TIME = timedelta(minutes=30)
 AXES_LOCKOUT_CALLABLE = 'apps.users.callbacks.user_locked_out'
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_PARAMETERS = ['username']
+AXES_USERNAME_FORM_FIELD = 'email'
 AXES_LOCKOUT_URL = '/api/v1/auth/locked-out/'
 
 # Spectacular settings for OpenAPI/Swagger

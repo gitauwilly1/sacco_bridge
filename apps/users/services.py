@@ -288,8 +288,11 @@ class TwoFactorService:
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=10, border=4)
         qr.add_data(provisioning_uri)
         qr.make(fit=True)
-        img = qr.make_image(image_factory=qrcode.image.svg.SvgImage, fill_color='#C67B5C', back_color='white')
-        return img.to_string()
+        img = qr.make_image(image_factory=qrcode.image.svg.SvgPathImage, fill_color='#C67B5C', back_color='white')
+        result = img.to_string()
+        if isinstance(result, bytes):
+            return result.decode('utf-8')
+        return result
 
     @staticmethod
     def verify_totp(secret, code):

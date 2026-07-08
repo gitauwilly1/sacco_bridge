@@ -10,7 +10,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.core.serializers import BaseSerializer, DynamicFieldsMixin, ReCaptchaField
 from apps.core.utils import generate_otp
-from apps.users.models import LoginHistory, User, UserProfile
+from apps.users.models import KYCDocument, LoginHistory, User, UserProfile
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -163,6 +163,13 @@ class GoogleAuthSerializer(serializers.Serializer):
 class TwoFactorSetupSerializer(serializers.Serializer):
     enable = serializers.BooleanField(required=True)
     totp_code = serializers.CharField(required=False, max_length=6, min_length=6)
+    current_password = serializers.CharField(required=False, style={'input_type': 'password'})
+
+    def validate_current_password(self, value):
+        request = self.context.get('request')
+        if not request or not request.user.check_password(value):
+            raise serializers.ValidationError(_('Current password is incorrect.'))
+        return value
 
 
 class TwoFactorVerifySerializer(serializers.Serializer):
@@ -246,6 +253,12 @@ class PasswordChangeSerializer(serializers.Serializer):
     new_password = serializers.CharField(required=True, validators=[validate_password], style={'input_type': 'password'})
     new_password_confirm = serializers.CharField(required=True, style={'input_type': 'password'})
 
+    def validate_current_password(self, value):
+        request = self.context.get('request')
+        if not request or not request.user.check_password(value):
+            raise serializers.ValidationError(_('Current password is incorrect.'))
+        return value
+
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
@@ -322,3 +335,31 @@ class PhoneNumberUpdateSerializer(serializers.Serializer):
         if User.objects.filter(phone_number=cleaned).exists():
             raise serializers.ValidationError(_('A user with this phone number already exists.'))
         return cleaned
+
+class KYCDocumentSerializer(serializers.ModelSerializer):
+    document_type_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = KYCDocument
+        fields = ['id', 'document_type', 'document_type_display', 'file', 'is_verified', 'rejection_reason', 'uploaded_at']
+        read_only_fields = ['id', 'is_verified', 'rejection_reason', 'uploaded_at']
+
+    def get_document_type_display(self, obj):
+        return obj.get_document_type_display()
+
+
+class KYCSubmitSerializer(serializers.Serializer):
+    def validate(self, data):
+        user = self.context['request'].user
+        if user.id_verification_status == 'PENDING':
+            raise serializers.ValidationError(_('KYC verification is already pending review.'))
+        if user.id_verification_status == 'VERIFIED':
+            raise serializers.ValidationError(_('Identity already verified.'))
+        required_types = ['NATIONAL_ID_FRONT', 'NATIONAL_ID_BACK', 'SELFIE']
+        uploaded = set(user.kyc_documents.values_list('document_type', flat=True))
+        missing = [t for t in required_types if t not in uploaded]
+        if missing:
+            raise serializers.ValidationError(
+                _('Please upload all required documents: %(docs)s') % {'docs': ', '.join(missing)}
+            )
+        return data

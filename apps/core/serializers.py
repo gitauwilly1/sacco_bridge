@@ -1,6 +1,7 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.fields import empty
+from apps.core.models import AdminApproval
 from apps.core.recaptcha import ReCaptchaService
 
 
@@ -79,3 +80,35 @@ class DynamicFieldsMixin:
                 existing_fields = set(self.fields.keys())
                 for field_name in existing_fields - allowed_fields:
                     self.fields.pop(field_name)
+
+
+class AdminApprovalSerializer(serializers.ModelSerializer):
+    requested_by_name = serializers.SerializerMethodField()
+    reviewed_by_name = serializers.SerializerMethodField()
+    action_display = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AdminApproval
+        fields = [
+            'id', 'action', 'action_display', 'target_id', 'target_repr',
+            'payload', 'requested_by', 'requested_by_name', 'status',
+            'status_display', 'reviewed_by', 'reviewed_by_name',
+            'review_notes', 'created_at', 'reviewed_at',
+        ]
+        read_only_fields = [
+            'id', 'requested_by', 'status', 'reviewed_by',
+            'reviewed_at', 'created_at', 'reviewed_at',
+        ]
+
+    def get_requested_by_name(self, obj):
+        return str(obj.requested_by) if obj.requested_by else ''
+
+    def get_reviewed_by_name(self, obj):
+        return str(obj.reviewed_by) if obj.reviewed_by else ''
+
+    def get_action_display(self, obj):
+        return obj.get_action_display()
+
+    def get_status_display(self, obj):
+        return obj.get_status_display()

@@ -40,9 +40,9 @@ services:
       - key: FRONTEND_URL
         value: https://app.sacco-bridge.onrender.com
       - key: DEFAULT_FROM_EMAIL
-        value: noreply@saccobridge.co.ke
-      - key: EMAIL_BACKEND
-        value: django.core.mail.backends.smtp.EmailBackend
+        value: grayshawn461@gmail.com
+      - key: RESEND_API_KEY
+        sync: false
       - key: ENCRYPTION_KEY
         value: your-generated-encryption-key
       - key: ADMIN_EMAIL
@@ -66,16 +66,6 @@ services:
       - key: MPESA_SHORTCODE
         sync: false
       - key: MPESA_CALLBACK_URL
-        sync: false
-      - key: EMAIL_HOST
-        sync: false
-      - key: EMAIL_PORT
-        sync: false
-      - key: EMAIL_USE_TLS
-        sync: false
-      - key: EMAIL_HOST_USER
-        sync: false
-      - key: EMAIL_HOST_PASSWORD
         sync: false
       - key: GEMINI_API_KEY
         sync: false

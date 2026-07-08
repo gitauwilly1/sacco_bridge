@@ -139,3 +139,23 @@ class ChatbotContextView(APIView):
                 'success': False,
                 'error': {'code': 'not_found', 'message': _('Session not found.')}
             }, status=status.HTTP_404_NOT_FOUND)
+
+class FAQListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['FAQ'],
+        summary='List published FAQs',
+        description='Get all published knowledge articles as FAQs.'
+    )
+    def get(self, request):
+        category = request.query_params.get('category')
+        articles = KnowledgeArticle.objects.filter(is_published=True)
+        if category:
+            articles = articles.filter(category=category)
+        articles = articles.order_by('-priority', '-created_at')
+        serializer = KnowledgeArticleSerializer(articles, many=True)
+        return Response({
+            'success': True,
+            'data': serializer.data,
+        })

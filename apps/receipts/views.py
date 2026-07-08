@@ -1,3 +1,4 @@
+import io
 import logging
 
 from django.http import FileResponse
@@ -6,6 +7,8 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+import qrcode
 
 from apps.receipts.models import Receipt
 from apps.receipts.serializers import ReceiptSerializer
@@ -46,12 +49,8 @@ class ReceiptDetailView(APIView):
         description='Get metadata for a specific receipt.'
     )
     def get(self, request, receipt_id):
-        try:
-            receipt = Receipt.objects.get(
-                receipt_number=receipt_id,
-                user=request.user
-            )
-        except Receipt.DoesNotExist:
+        receipt = self._get_receipt(receipt_id, request.user)
+        if not receipt:
             return Response({
                 'success': False,
                 'error': {
@@ -67,6 +66,20 @@ class ReceiptDetailView(APIView):
             'data': serializer.data,
         })
 
+    def _get_receipt(self, receipt_id, user):
+        try:
+            return Receipt.objects.get(receipt_number=receipt_id, user=user)
+        except Receipt.DoesNotExist:
+            pass
+        try:
+            return Receipt.objects.get(settlement__uuid=receipt_id, user=user)
+        except Receipt.DoesNotExist:
+            pass
+        try:
+            return Receipt.objects.get(id=receipt_id, user=user)
+        except (Receipt.DoesNotExist, ValueError):
+            return None
+
 
 class ReceiptDownloadView(APIView):
 
@@ -78,12 +91,8 @@ class ReceiptDownloadView(APIView):
         description='Download the PDF file for a specific receipt.'
     )
     def get(self, request, receipt_id):
-        try:
-            receipt = Receipt.objects.get(
-                receipt_number=receipt_id,
-                user=request.user
-            )
-        except Receipt.DoesNotExist:
+        receipt = ReceiptDetailView()._get_receipt(receipt_id, request.user)
+        if not receipt:
             return Response({
                 'success': False,
                 'error': {
@@ -109,3 +118,40 @@ class ReceiptDownloadView(APIView):
             f'attachment; filename="SaccoBridge_Receipt_{receipt.receipt_number}.pdf"'
         )
         return response
+
+
+class ReceiptQRView(APIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=['Receipts'],
+        summary='Get receipt QR code image',
+        description='Get a PNG image of the QR code for a specific receipt.'
+    )
+    def get(self, request, receipt_id):
+        receipt = ReceiptDetailView()._get_receipt(receipt_id, request.user)
+        if not receipt:
+            return Response({
+                'success': False,
+                'error': {
+                    'code': 'not_found',
+                    'message': _('Receipt not found.')
+                }
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(f"https://saccobridge.co.ke/verify/{receipt.verification_code}")
+        qr.make(fit=True)
+        qr_img = qr.make_image(fill_color='#C67B5C', back_color='white')
+
+        buf = io.BytesIO()
+        qr_img.save(buf, format='PNG')
+        buf.seek(0)
+
+        return FileResponse(buf, content_type='image/png')

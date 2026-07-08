@@ -89,6 +89,9 @@ requests==2.32.3
 websockets>=13.0
 urllib3==2.6.0
 
+# Email
+django-anymail[resend]==12.0
+
 # Cloud Storage
 cloudinary==1.41.0
 django-cloudinary-storage==0.3.0

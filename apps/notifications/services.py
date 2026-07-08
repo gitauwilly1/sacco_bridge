@@ -1,4 +1,7 @@
+import json
 import logging
+import os
+import tempfile
 
 import firebase_admin
 from django.conf import settings
@@ -31,13 +34,24 @@ class FirebaseService:
 
         try:
             cred_path = getattr(settings, 'FIREBASE_CREDENTIALS_PATH', None)
+            cred_json = os.environ.get('FIREBASE_CREDENTIALS_JSON')
+
             if cred_path:
                 cred = credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred)
                 cls._initialized = True
-                logger.info("Firebase Admin SDK initialized successfully.")
+                logger.info("Firebase Admin SDK initialized from file.")
+            elif cred_json:
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                    f.write(cred_json)
+                    tmp_path = f.name
+                cred = credentials.Certificate(tmp_path)
+                firebase_admin.initialize_app(cred)
+                cls._initialized = True
+                os.unlink(tmp_path)
+                logger.info("Firebase Admin SDK initialized from env var.")
             else:
-                logger.warning("Firebase credentials path not configured.")
+                logger.warning("Firebase credentials not configured.")
         except Exception as e:
             logger.error(f"Failed to initialize Firebase: {str(e)}")
 

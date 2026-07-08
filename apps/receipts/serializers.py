@@ -7,6 +7,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
     receipt_type_display = serializers.SerializerMethodField()
     download_url = serializers.SerializerMethodField()
+    qr_code_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Receipt
@@ -14,7 +15,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
             'id', 'receipt_number', 'receipt_type',
             'receipt_type_display', 'amount', 'description',
             'party_name', 'verification_code',
-            'generated_at', 'download_url',
+            'generated_at', 'download_url', 'qr_code_url',
         ]
 
     def get_receipt_type_display(self, obj):
@@ -22,3 +23,6 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
     def get_download_url(self, obj):
         return f"/api/v1/receipts/{obj.receipt_number}/download/"
+
+    def get_qr_code_url(self, obj):
+        return f"/api/v1/receipts/{obj.receipt_number}/qr/"
