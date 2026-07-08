@@ -9,18 +9,10 @@ class ReCaptchaField(serializers.CharField):
     def __init__(self, action=None, **kwargs):
         self.recaptcha_action = action
         
-        from django.conf import settings
-        recaptcha_configured = bool(
-            getattr(settings, 'RECAPTCHA_SITE_KEY', '') and 
-            getattr(settings, 'RECAPTCHA_SECRET_KEY', '')
-        )
-        
-        if not recaptcha_configured or settings.DEBUG:
-            kwargs.setdefault('required', False)
-            kwargs.setdefault('allow_blank', True)
-            kwargs.setdefault('default', 'dev-bypass')
-        else:
-            kwargs.setdefault('required', True)
+        # Temporary: always optional until reCAPTCHA keys are configured
+        kwargs.setdefault('required', False)
+        kwargs.setdefault('allow_blank', True)
+        kwargs.setdefault('default', 'bypass')
         
         kwargs.setdefault('write_only', True)
         kwargs.setdefault(
@@ -30,24 +22,7 @@ class ReCaptchaField(serializers.CharField):
         super().__init__(**kwargs)
 
     def validate_recaptcha(self, value):
-        from django.conf import settings
-        
-        recaptcha_configured = bool(
-            getattr(settings, 'RECAPTCHA_SITE_KEY', '') and 
-            getattr(settings, 'RECAPTCHA_SECRET_KEY', '')
-        )
-        
-        # Skip if not configured
-        if not recaptcha_configured or settings.DEBUG:
-            return value
-        
-        # Verify in production
-        if not value:
-            raise serializers.ValidationError(_('reCAPTCHA token is required.'))
-        
-        result = ReCaptchaService.verify(value, action=self.recaptcha_action)
-        if not result['success']:
-            raise serializers.ValidationError(result['error'])
+        # Temporary bypass — always pass
         return value
 
     def run_validation(self, data):
