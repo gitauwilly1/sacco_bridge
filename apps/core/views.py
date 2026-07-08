@@ -40,3 +40,16 @@ def health_check(request):
 
     status_code = 200 if health_status['status'] == 'healthy' else 503
     return Response(health_status, status=status_code)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def client_error_log(request):
+    errors = request.data.get('errors', [])
+    if not isinstance(errors, list):
+        errors = [request.data]
+    import logging
+    logger = logging.getLogger('sacco_bridge.client_errors')
+    for entry in errors:
+        logger.warning('Client error: %s | URL: %s | Level: %s',
+                       entry.get('message', ''), entry.get('url', ''), entry.get('level', 'ERROR'))
+    return Response({'success': True, 'data': {}})
