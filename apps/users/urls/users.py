@@ -6,6 +6,7 @@ from apps.users.views import (
     AccountDeletionView,
     ActiveSessionsView,
     AdminDeletionReviewView,
+    AdminKYCDocumentsView,
     AdminUserManagementView,
     AuditLogView,
     DataExportView,
@@ -38,4 +39,5 @@ urlpatterns = [
     path('admin/deletion-requests/<uuid:pk>/', AdminDeletionReviewView.as_view(), name='admin-deletion-request-detail'),
     path('admin/deletion-requests/<uuid:pk>/review/', AdminDeletionReviewView.as_view(), name='admin-deletion-review'),
     path('admin/unified-audit/', UnifiedAuditView.as_view(), name='admin-unified-audit'),
+    path('admin/kyc/documents/', AdminKYCDocumentsView.as_view(), name='admin-kyc-documents'),
 ]

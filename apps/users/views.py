@@ -671,6 +671,47 @@ class ProfilePictureUploadView(APIView):
             'message': _('Profile picture removed.'),
         })
 
+
+
+class AdminKYCDocumentsView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsPlatformStaff]
+
+    @extend_schema(
+        tags=['Admin'],
+        summary='[Admin] Get KYC documents for a user',
+        description='Retrieve all KYC documents uploaded by a specific user.',
+        parameters=[
+            OpenApiParameter(name='user_id', description='User UUID', type=str, required=True),
+        ],
+    )
+    def get(self, request):
+        user_id = request.query_params.get('user_id')
+        if not user_id:
+            return Response({
+                'success': False,
+                'error': {'code': 'validation_error', 'message': _('user_id is required.')}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': {'code': 'not_found', 'message': _('User not found.')}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        docs = KYCDocument.objects.filter(user=user)
+        doc_serializer = KYCDocumentSerializer(docs, many=True)
+        return Response({
+            'success': True,
+            'data': {
+                'user_id': str(user.id),
+                'full_name': user.get_full_name(),
+                'email': user.email,
+                'id_verification_status': user.id_verification_status,
+                'documents': doc_serializer.data,
+            },
+        })
 class PasswordResetConfirmView(APIView):
 
     permission_classes = [permissions.AllowAny]
