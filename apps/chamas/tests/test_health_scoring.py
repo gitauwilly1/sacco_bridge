@@ -46,7 +46,7 @@ class TestChamaHealthScoring:
     """
     Comprehensive test suite for ChamaHealthService and its batch execution task.
     Enforces strict mathematical boundaries, KDPA reason codes, atomic row locking,
-    and exception isolation.
+    balance-weighted loan PAR scoring, and exception isolation.
     """
 
     def test_empty_chama_neutral_defaults(self, active_chama):
@@ -58,7 +58,7 @@ class TestChamaHealthScoring:
         - Attendance: 50.0 (weight 20% -> 10.0)
         - Savings Growth: 0.0 (weight 15% -> 0.0)
         - Retention: 100.0 (weight 10% -> 10.0)
-        Total Overall Score: 60.0 (Grade C)
+        Total Overall Score: 60.0 (Grade C under standard 10-point deciles)
         """
         result = ChamaHealthService.calculate_health_score(active_chama)
 
@@ -160,8 +160,8 @@ class TestChamaHealthScoring:
 
     def test_distressed_chama_with_defaults(self, active_chama, test_user):
         """
-        Tests that defaulted loans and late/missed contributions correctly degrade
-        the score to a failing/warning grade (D or F).
+        Tests that defaulted loans and missed contributions correctly degrade
+        the score to a failing grade (F < 50.0) and emit critical risk reason codes.
         """
         member = ChamaMember.objects.get(chama=active_chama, user=test_user)
         now = timezone.now()
@@ -220,13 +220,70 @@ class TestChamaHealthScoring:
         assert result['breakdown']['loan_performance']['score'] == '0.0'
         assert result['breakdown']['meeting_attendance']['reason_code'] == 'ATTENDANCE_POOR_ENGAGEMENT'
 
+    def test_loan_performance_balance_weighted_math(self, active_chama, test_user):
+        """
+        Dedicated unit test for Principal-Balance-Weighted Loan Performance (PAR Standard):
+        - Case A: 1 large default (KES 500k) + 9 small repaid loans (KES 5k each)
+          Total: KES 545k, Repaid: KES 45k -> Score: 45k/545k = 8.3% -> LOAN_DEFAULT_IMPAIRMENT
+        - Case B: 1 small default (KES 5k) + 9 large repaid loans (KES 50k each)
+          Total: KES 455k, Repaid: KES 450k -> Score: 450k/455k = 98.9% -> LOAN_PAR_WARNING (default ratio 1.1% < 30%)
+        - Case C: 1 active performing loan (KES 100k) -> Score: 70.0% -> LOAN_PORTFOLIO_PERFORMING
+        """
+        member = ChamaMember.objects.get(chama=active_chama, user=test_user)
+        now = timezone.now()
+
+        # Case A: 1 large default + 9 small repaid
+        chama_a = Chama.objects.create(name="Chama Large Default", slug="chama-large-default", status=ChamaStatus.ACTIVE, invite_code="CLD1", contribution_amount=Decimal('1000.00'))
+        m_a = ChamaMember.objects.create(chama=chama_a, user=test_user, role=MemberRole.MEMBER, is_active=True)
+        
+        Loan.objects.create(
+            chama=chama_a, borrower=m_a, principal=Decimal('500000.00'),
+            interest_rate=Decimal('10.00'), duration_months=12, status=LoanStatus.DEFAULTED
+        )
+        for i in range(9):
+            Loan.objects.create(
+                chama=chama_a, borrower=m_a, principal=Decimal('5000.00'),
+                interest_rate=Decimal('10.00'), duration_months=3, status=LoanStatus.FULLY_REPAID
+            )
+        score_a, code_a, _ = ChamaHealthService._calculate_loan_performance(chama_a)
+        assert score_a == Decimal('8.3')  # 45,000 / 545,000 * 100
+        assert code_a == 'LOAN_DEFAULT_IMPAIRMENT'
+
+        # Case B: 1 small default + 9 large repaid
+        chama_b = Chama.objects.create(name="Chama Small Default", slug="chama-small-default", status=ChamaStatus.ACTIVE, invite_code="CSD1", contribution_amount=Decimal('1000.00'))
+        m_b = ChamaMember.objects.create(chama=chama_b, user=test_user, role=MemberRole.MEMBER, is_active=True)
+        
+        Loan.objects.create(
+            chama=chama_b, borrower=m_b, principal=Decimal('5000.00'),
+            interest_rate=Decimal('10.00'), duration_months=3, status=LoanStatus.DEFAULTED
+        )
+        for i in range(9):
+            Loan.objects.create(
+                chama=chama_b, borrower=m_b, principal=Decimal('50000.00'),
+                interest_rate=Decimal('10.00'), duration_months=6, status=LoanStatus.FULLY_REPAID
+            )
+        score_b, code_b, _ = ChamaHealthService._calculate_loan_performance(chama_b)
+        assert score_b == Decimal('98.9')  # 450,000 / 455,000 * 100
+        assert code_b == 'LOAN_PAR_WARNING'
+
+        # Case C: Active performing loan
+        chama_c = Chama.objects.create(name="Chama Performing", slug="chama-performing", status=ChamaStatus.ACTIVE, invite_code="CP1", contribution_amount=Decimal('1000.00'))
+        m_c = ChamaMember.objects.create(chama=chama_c, user=test_user, role=MemberRole.MEMBER, is_active=True)
+        Loan.objects.create(
+            chama=chama_c, borrower=m_c, principal=Decimal('100000.00'),
+            interest_rate=Decimal('10.00'), duration_months=6, status=LoanStatus.DISBURSED
+        )
+        score_c, code_c, _ = ChamaHealthService._calculate_loan_performance(chama_c)
+        assert score_c == Decimal('70.0')
+        assert code_c == 'LOAN_PORTFOLIO_PERFORMING'
+
     def test_month_over_month_savings_growth_math(self, active_chama, test_user):
         """
         Dedicated unit test for savings growth (15% factor weight):
         - Robust growth (+20% >= 10% -> 100.0 score, SAVINGS_EXPANSION_EXCELLENT)
         - Stable growth (+5% -> score 50 + 5*5 = 75.0, SAVINGS_STABLE_GROWTH)
-        - Contraction (-10% -> score 50 - 10*3 = 20.0, SAVINGS_CONTRACTION)
-        - Severe contraction (-50% -> score max(0, 50 - 50*3) = 0.0, SAVINGS_CONTRACTION)
+        - Contraction (-10% -> score 50 - 10*3 = 20.0, SAVINGS_DEPOSIT_CONTRACTION)
+        - Severe contraction (-50% -> score max(0, 50 - 50*3) = 0.0, SAVINGS_DEPOSIT_CONTRACTION)
         - Zero previous month baseline with current deposits -> score 50.0, SAVINGS_NEW_DEPOSITS_INITIATED
         """
         member = ChamaMember.objects.get(chama=active_chama, user=test_user)
@@ -276,14 +333,14 @@ class TestChamaHealthScoring:
         c_cur.save()
         score_d, code_d, _ = ChamaHealthService._calculate_savings_growth(active_chama)
         assert score_d == Decimal('20.0')
-        assert code_d == 'SAVINGS_CONTRACTION'
+        assert code_d == 'SAVINGS_DEPOSIT_CONTRACTION'
 
         # Case E: Severe Contraction (This month 5,000 vs Last month 10,000 -> -50%)
         c_cur.amount = Decimal('5000.00')
         c_cur.save()
         score_e, code_e, _ = ChamaHealthService._calculate_savings_growth(active_chama)
         assert score_e == Decimal('0.0')
-        assert code_e == 'SAVINGS_CONTRACTION'
+        assert code_e == 'SAVINGS_DEPOSIT_CONTRACTION'
 
     def test_member_retention_edge_cases(self, db):
         """
@@ -291,7 +348,7 @@ class TestChamaHealthScoring:
         - Zero total members guard (prevents ZeroDivisionError) -> score 0.0, RETENTION_ZERO_MEMBERS
         - 100% active retention (10/10) -> score 100.0, RETENTION_STABLE_MEMBERSHIP
         - Moderate churn (8/10 active = 80%) -> score 80.0, RETENTION_MODERATE_CHURN
-        - High churn risk (5/10 active = 50%) -> score 50.0, RETENTION_HIGH_CHURN_RISK
+        - High churn risk (5/10 active = 50%) -> score 50.0, RETENTION_ATTRITION_WARNING
         """
         # Case A: Chama with zero members
         empty_chama = Chama.objects.create(
@@ -341,14 +398,14 @@ class TestChamaHealthScoring:
         assert score_c == Decimal('80.0')
         assert code_c == 'RETENTION_MODERATE_CHURN'
 
-        # Case D: 5/10 active (50% retention -> High Churn Risk)
+        # Case D: 5/10 active (50% retention -> Attrition Warning)
         for i in range(2, 5):
             members[i].is_active = False
             members[i].save()
 
         score_d, code_d, _ = ChamaHealthService._calculate_retention(chama_b)
         assert score_d == Decimal('50.0')
-        assert code_d == 'RETENTION_HIGH_CHURN_RISK'
+        assert code_d == 'RETENTION_ATTRITION_WARNING'
 
     def test_atomic_persistence_and_database_isolation(self, active_chama):
         """
