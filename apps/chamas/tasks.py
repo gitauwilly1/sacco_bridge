@@ -164,23 +164,31 @@ def send_loan_repayment_reminders(self):
     max_retries=1,
 )
 def update_chama_health_scores(self):
+    """
+    Periodic batch job to calculate and persist Chama health scores.
+    Uses chunked querysets and per-chama exception isolation to prevent
+    a single failure from halting batch execution.
+    """
     from apps.chamas.models import Chama
     from apps.chamas.services import ChamaHealthService
 
-    logger.info("Starting chama health score update...")
+    logger.info("Starting batch chama health score update...")
 
-    chamas = Chama.objects.filter(status='ACTIVE', is_deleted=False)
+    active_chamas_qs = Chama.objects.filter(status='ACTIVE', is_deleted=False)
+    total_eligible = active_chamas_qs.count()
     updated = 0
+    failed = 0
 
-    for chama in chamas:
+    for chama in active_chamas_qs.iterator(chunk_size=100):
         try:
             ChamaHealthService.update_chama_health(chama)
             updated += 1
         except Exception as e:
-            logger.error(f"Health score failed for chama {chama.id}: {e}")
+            failed += 1
+            logger.error(f"Health score calculation failed for chama {chama.id} ({chama.name}): {e}", exc_info=True)
 
-    logger.info(f"Health scores updated for {updated}/{chamas.count()} chamas")
-    return {'updated': updated}
+    logger.info(f"Batch health score update finished: {updated} succeeded, {failed} failed out of {total_eligible} eligible chamas.")
+    return {'total_eligible': total_eligible, 'updated': updated, 'failed': failed}
 
 @shared_task(
     name='apps.chamas.tasks.detect_loan_defaults',
