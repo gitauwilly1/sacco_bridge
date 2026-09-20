@@ -87,6 +87,15 @@ class MpesaTransaction(BaseModel):
         help_text=_("The contribution this payment fulfills.")
     )
 
+    settlement = models.ForeignKey(
+        'transactions.SettlementIntent',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='mpesa_transactions',
+        help_text=_("The settlement intent this payment fulfills.")
+    )
+
     # Transaction details
     transaction_type = models.CharField(
         max_length=30,
@@ -191,6 +200,13 @@ class MpesaTransaction(BaseModel):
             models.Index(fields=['checkout_request_id']),
             models.Index(fields=['mpesa_receipt_number']),
             models.Index(fields=['status', 'created_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['mpesa_receipt_number'],
+                condition=~models.Q(mpesa_receipt_number=''),
+                name='unique_non_empty_mpesa_receipt_number'
+            )
         ]
 
     def __str__(self):
