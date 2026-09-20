@@ -1,7 +1,9 @@
 import uuid
 from decimal import Decimal
 import pytest
-from django.utils import timezone
+from django.test import override_settings
+from django.urls import reverse
+from rest_framework.test import APIClient
 
 from apps.core.tests.factories import (
     ChamaFactory,
@@ -21,7 +23,6 @@ from apps.transactions.models import (
     Dispute,
     DisputeReason,
     DisputeStatus,
-    SettlementEventTrigger,
     SettlementState,
 )
 
@@ -67,6 +68,7 @@ class TestMpesaCallbackProcessing:
         self.chama = ChamaFactory()
         self.member = ChamaMemberFactory(chama=self.chama, user=self.user)
         self.contribution = ContributionFactory(chama=self.chama, member=self.member, amount=Decimal('1000.00'), status='PENDING')
+        self.client = APIClient()
 
     def test_successful_callback_marks_completed_and_pays_contribution(self):
         checkout_id = f"ws_CO_{uuid.uuid4().hex[:12]}"
@@ -313,3 +315,114 @@ class TestMpesaCallbackProcessing:
         res = MpesaService.process_callback(payload)
         assert res['success'] is False
         assert res['error'] == 'Transaction not found.'
+
+    @override_settings(MPESA_ENFORCE_IP_ALLOWLIST=True, MPESA_ALLOW_DEV_IPS=False)
+    def test_callback_endpoint_rejects_untrusted_ip_silently(self):
+        checkout_id = f"ws_CO_{uuid.uuid4().hex[:12]}"
+        transaction = MpesaTransaction.objects.create(
+            user=self.user,
+            chama=self.chama,
+            transaction_type=MpesaTransactionType.CHAMA_CONTRIBUTION,
+            phone_number='254712345678',
+            amount=Decimal('1000.00'),
+            checkout_request_id=checkout_id,
+            status=MpesaTransactionStatus.INITIATED
+        )
+
+        payload = create_stk_callback_payload(
+            checkout_request_id=checkout_id,
+            result_code=0,
+            receipt='REC_SPOOFED_IP',
+            amount=1000
+        )
+
+        # Attacker IP (e.g. 45.33.32.156)
+        response = self.client.post(
+            reverse('mpesa-callback'),
+            payload,
+            format='json',
+            REMOTE_ADDR='45.33.32.156'
+        )
+
+        # Returns silent 200 OK to avoid disclosing rejection
+        assert response.status_code == 200
+        assert response.data['ResultCode'] == 0
+
+        # Transaction was NOT processed
+        transaction.refresh_from_db()
+        assert transaction.status == MpesaTransactionStatus.INITIATED
+        assert transaction.mpesa_receipt_number == ''
+
+    @override_settings(MPESA_CALLBACK_SECRET='super-secret-safaricom-token-2026', MPESA_ENFORCE_IP_ALLOWLIST=False)
+    def test_callback_endpoint_rejects_missing_or_wrong_secret_token(self):
+        checkout_id = f"ws_CO_{uuid.uuid4().hex[:12]}"
+        transaction = MpesaTransaction.objects.create(
+            user=self.user,
+            chama=self.chama,
+            transaction_type=MpesaTransactionType.CHAMA_CONTRIBUTION,
+            phone_number='254712345678',
+            amount=Decimal('1000.00'),
+            checkout_request_id=checkout_id,
+            status=MpesaTransactionStatus.INITIATED
+        )
+
+        payload = create_stk_callback_payload(
+            checkout_request_id=checkout_id,
+            result_code=0,
+            receipt='REC_WRONG_TOKEN',
+            amount=1000
+        )
+
+        # 1. No secret passed
+        response1 = self.client.post(reverse('mpesa-callback'), payload, format='json')
+        assert response1.status_code == 200
+        transaction.refresh_from_db()
+        assert transaction.status == MpesaTransactionStatus.INITIATED
+
+        # 2. Invalid secret passed
+        response2 = self.client.post(
+            reverse('mpesa-callback') + '?token=invalid-token',
+            payload,
+            format='json'
+        )
+        assert response2.status_code == 200
+        transaction.refresh_from_db()
+        assert transaction.status == MpesaTransactionStatus.INITIATED
+
+    @override_settings(MPESA_CALLBACK_SECRET='super-secret-safaricom-token-2026', MPESA_ENFORCE_IP_ALLOWLIST=True)
+    def test_callback_endpoint_accepts_valid_safaricom_ip_and_matching_secret(self):
+        checkout_id = f"ws_CO_{uuid.uuid4().hex[:12]}"
+        transaction = MpesaTransaction.objects.create(
+            user=self.user,
+            chama=self.chama,
+            contribution=self.contribution,
+            transaction_type=MpesaTransactionType.CHAMA_CONTRIBUTION,
+            phone_number='254712345678',
+            amount=Decimal('1000.00'),
+            checkout_request_id=checkout_id,
+            status=MpesaTransactionStatus.INITIATED
+        )
+
+        payload = create_stk_callback_payload(
+            checkout_request_id=checkout_id,
+            result_code=0,
+            receipt='REC_AUTH_SUCCESS',
+            amount=1000
+        )
+
+        # Request from legitimate Safaricom IP (196.201.214.20) with valid secret header
+        response = self.client.post(
+            reverse('mpesa-callback-secret', kwargs={'secret_key': 'super-secret-safaricom-token-2026'}),
+            payload,
+            format='json',
+            REMOTE_ADDR='196.201.214.20'
+        )
+
+        assert response.status_code == 200
+        assert response.data['ResultCode'] == 0
+
+        transaction.refresh_from_db()
+        assert transaction.status == MpesaTransactionStatus.COMPLETED
+        assert transaction.mpesa_receipt_number == 'REC_AUTH_SUCCESS'
+        self.contribution.refresh_from_db()
+        assert self.contribution.status == 'PAID'

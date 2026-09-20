@@ -10,9 +10,7 @@ services:
       python manage.py create_roles
       python manage.py create_notification_templates
       python manage.py create_admin
-    startCommand: |
-      celery -A sacco_bridge worker -l info -Q celery,settlements,analytics,maintenance,notifications,payments --concurrency=1 --detach &
-      gunicorn sacco_bridge.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+    startCommand: gunicorn sacco_bridge.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: sacco_bridge.settings.production
@@ -32,7 +30,7 @@ services:
       - key: CELERY_RESULT_BACKEND
         value: redis://sacco-bridge-redis:6379/2
       - key: SECRET_KEY
-        value: your-generated-secret-key
+        generateValue: true
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
@@ -40,15 +38,15 @@ services:
       - key: FRONTEND_URL
         value: https://app.sacco-bridge.onrender.com
       - key: DEFAULT_FROM_EMAIL
-        value: grayshawn461@gmail.com
+        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: ENCRYPTION_KEY
-        value: your-generated-encryption-key
+        generateValue: true
       - key: ADMIN_EMAIL
-        value: admin@saccobridge.co.ke
+        sync: false
       - key: ADMIN_PASSWORD
-        value: AdminPass@2026
+        sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
@@ -66,6 +64,8 @@ services:
       - key: MPESA_SHORTCODE
         sync: false
       - key: MPESA_CALLBACK_URL
+        sync: false
+      - key: MPESA_CALLBACK_SECRET
         sync: false
       - key: GEMINI_API_KEY
         sync: false
@@ -85,6 +85,76 @@ services:
         sync: false
       - key: FIREBASE_CREDENTIALS_PATH
         value: credentials/firebase-credentials.json
+
+  - type: worker
+    name: sacco-bridge-celery-worker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A sacco_bridge worker -l info -Q celery,settlements,analytics,maintenance,notifications,payments --concurrency=2
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: sacco_bridge.settings.production
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sacco-bridge-db-v2
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: sacco-bridge-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        value: redis://sacco-bridge-redis:6379/1
+      - key: CELERY_RESULT_BACKEND
+        value: redis://sacco-bridge-redis:6379/2
+      - key: SECRET_KEY
+        fromService:
+          name: sacco-bridge-api
+          type: web
+          envVarKey: SECRET_KEY
+      - key: ENCRYPTION_KEY
+        fromService:
+          name: sacco-bridge-api
+          type: web
+          envVarKey: ENCRYPTION_KEY
+
+  - type: worker
+    name: sacco-bridge-celery-beat
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A sacco_bridge beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: sacco_bridge.settings.production
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sacco-bridge-db-v2
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: sacco-bridge-redis
+          type: redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        value: redis://sacco-bridge-redis:6379/1
+      - key: CELERY_RESULT_BACKEND
+        value: redis://sacco-bridge-redis:6379/2
+      - key: SECRET_KEY
+        fromService:
+          name: sacco-bridge-api
+          type: web
+          envVarKey: SECRET_KEY
+      - key: ENCRYPTION_KEY
+        fromService:
+          name: sacco-bridge-api
+          type: web
+          envVarKey: ENCRYPTION_KEY
 
   - type: redis
     name: sacco-bridge-redis

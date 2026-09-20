@@ -1,5 +1,8 @@
+import ipaddress
 import logging
+from decimal import Decimal
 
+from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, status
@@ -7,7 +10,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.mpesa.models import MpesaTransaction, MpesaTransactionType
+from apps.mpesa.models import (
+    MpesaTransaction,
+    MpesaTransactionStatus,
+    MpesaTransactionType,
+)
 from apps.mpesa.serializers import (
     MpesaTransactionSerializer,
     StkPushRequestSerializer,
@@ -16,6 +23,80 @@ from apps.mpesa.serializers import (
 from apps.mpesa.services import MpesaService
 
 logger = logging.getLogger(__name__)
+
+# Safaricom Daraja Official IP Ranges (CIDR)
+SAFARICOM_IP_RANGES = [
+    ipaddress.ip_network('196.201.214.0/24'),
+    ipaddress.ip_network('196.201.213.0/24'),
+    ipaddress.ip_network('196.201.215.0/24'),
+    ipaddress.ip_network('196.13.107.0/24'),
+]
+
+# Development / Loopback / Local IP Ranges
+ALLOWED_DEV_NETWORKS = [
+    ipaddress.ip_network('127.0.0.0/8'),
+    ipaddress.ip_network('::1/128'),
+    ipaddress.ip_network('10.0.0.0/8'),
+    ipaddress.ip_network('172.16.0.0/12'),
+    ipaddress.ip_network('192.168.0.0/16'),
+]
+
+
+def get_client_ip(request):
+    """Extract client IP address handling proxies and direct connections."""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0].strip()
+    else:
+        ip = request.META.get('REMOTE_ADDR', '').strip()
+    return ip
+
+
+def is_authorized_safaricom_ip(ip_str):
+    """Validate client IP against Safaricom CIDR blocks and configured dev allowlists."""
+    if not ip_str:
+        return False
+    try:
+        client_ip = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return False
+
+    # Check Safaricom production CIDRs
+    for network in SAFARICOM_IP_RANGES:
+        if client_ip in network:
+            return True
+
+    # If dev/test environment or explicit dev allowlist enabled
+    allow_dev = getattr(settings, 'MPESA_ALLOW_DEV_IPS', getattr(settings, 'DEBUG', False))
+    if allow_dev:
+        for network in ALLOWED_DEV_NETWORKS:
+            if client_ip in network:
+                return True
+
+    return False
+
+
+def is_authorized_callback_secret(request, secret_key=None):
+    """Validate shared secret token across URL path, query params, or header."""
+    expected_secret = getattr(settings, 'MPESA_CALLBACK_SECRET', None)
+    if not expected_secret:
+        return True
+
+    # 1. URL Path token
+    if secret_key and secret_key == expected_secret:
+        return True
+
+    # 2. Query parameter (?token=... or ?secret=...)
+    query_token = request.query_params.get('token') or request.query_params.get('secret')
+    if query_token and query_token == expected_secret:
+        return True
+
+    # 3. HTTP Header (X-Callback-Secret or X-Mpesa-Token)
+    header_token = request.headers.get('X-Callback-Secret') or request.headers.get('X-Mpesa-Token')
+    if header_token and header_token == expected_secret:
+        return True
+
+    return False
 
 
 class StkPushView(APIView):
@@ -102,21 +183,43 @@ class StkPushView(APIView):
 
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
-def mpesa_callback(request):
-    logger.info(f"M-Pesa callback received: {request.data}")
+def mpesa_callback(request, secret_key=None):
+    """
+    Safaricom M-Pesa STK Push Callback Endpoint.
+    Enforces IP allowlisting and shared secret authentication.
+    Rejections return silent 200 (ResultCode: 0) to avoid disclosing endpoint behavior to probers.
+    """
+    client_ip = get_client_ip(request)
+    logger.info(f"M-Pesa callback received from {client_ip}")
 
+    # 1. IP Allowlist Verification
+    enforce_ip = getattr(settings, 'MPESA_ENFORCE_IP_ALLOWLIST', not getattr(settings, 'DEBUG', False))
+    if enforce_ip and not is_authorized_safaricom_ip(client_ip):
+        logger.warning(
+            f"Unauthorized M-Pesa callback attempt from untrusted IP: {client_ip}. Silently rejecting."
+        )
+        return Response({
+            'ResultCode': 0,
+            'ResultDesc': 'Accepted'
+        }, status=status.HTTP_200_OK)
+
+    # 2. Shared Secret Verification (Defense in Depth)
+    if not is_authorized_callback_secret(request, secret_key=secret_key):
+        logger.warning(
+            f"Unauthorized M-Pesa callback attempt: invalid/missing secret token. Silently rejecting."
+        )
+        return Response({
+            'ResultCode': 0,
+            'ResultDesc': 'Accepted'
+        }, status=status.HTTP_200_OK)
+
+    # Process verified callback payload
     result = MpesaService.process_callback(request.data)
 
-    if result['success']:
-        return Response({
-            'ResultCode': 0,
-            'ResultDesc': 'Accepted'
-        }, status=status.HTTP_200_OK)
-    else:
-        return Response({
-            'ResultCode': 0,
-            'ResultDesc': 'Accepted'
-        }, status=status.HTTP_200_OK)
+    return Response({
+        'ResultCode': 0,
+        'ResultDesc': 'Accepted'
+    }, status=status.HTTP_200_OK)
 
 
 class MpesaTransactionView(APIView):

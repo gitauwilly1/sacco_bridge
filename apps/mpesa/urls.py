@@ -10,6 +10,7 @@ from apps.mpesa.views import (
 urlpatterns = [
     path('stk-push/', StkPushView.as_view(), name='mpesa-stk-push'),
     path('callback/', mpesa_callback, name='mpesa-callback'),
+    path('callback/<str:secret_key>/', mpesa_callback, name='mpesa-callback-secret'),
     path('transactions/', MpesaTransactionView.as_view(), name='mpesa-transactions'),
     path('transactions/<uuid:transaction_id>/', MpesaTransactionDetailView.as_view(), name='mpesa-transaction-detail'),
 ]
