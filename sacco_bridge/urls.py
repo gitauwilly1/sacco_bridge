@@ -50,6 +50,7 @@ urlpatterns = [
     path('api/v1/scoring/', include('apps.scoring.urls')),
     path('api/v1/escrow/', include('apps.escrow.urls')),
     path('api/v1/fraud/', include('apps.fraud.urls')),
+    path('api/v1/support/', include('apps.support.urls')),
 ]
 
 # Serve media files in development

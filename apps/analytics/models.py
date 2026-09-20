@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from apps.core.models import BaseModel
 
 
-class ReportType(models.TextChoices):
+class AnalyticsReportType(models.TextChoices):
 
     PLATFORM_OVERVIEW = 'PLATFORM_OVERVIEW', _('Platform Overview')
     CHAMA_PERFORMANCE = 'CHAMA_PERFORMANCE', _('Chama Performance')
@@ -14,6 +14,10 @@ class ReportType(models.TextChoices):
     DISPUTE_ANALYSIS = 'DISPUTE_ANALYSIS', _('Dispute Analysis')
     USER_GROWTH = 'USER_GROWTH', _('User Growth')
     REVENUE = 'REVENUE', _('Revenue Report')
+
+
+# Backward-compatible alias to avoid breaking existing imports/migrations
+ReportType = AnalyticsReportType
 
 
 class ReportFrequency(models.TextChoices):
@@ -349,7 +353,7 @@ class ScheduledReport(BaseModel):
 
     report_type = models.CharField(
         max_length=30,
-        choices=ReportType.choices,
+        choices=AnalyticsReportType.choices,
         help_text=_("Type of report to generate.")
     )
 
@@ -424,7 +428,7 @@ class ReportGeneration(BaseModel):
 
     report_type = models.CharField(
         max_length=30,
-        choices=ReportType.choices,
+        choices=AnalyticsReportType.choices,
         help_text=_("Type of report generated.")
     )
 
