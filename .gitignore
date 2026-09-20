@@ -72,3 +72,7 @@ media/receipts/
 
 # Jupyter
 *.ipynb_checkpoints/backups/
+
+# Local artifacts
+graphify-out/
+*.diff
