@@ -89,7 +89,7 @@ services:
   - type: worker
     name: sacco-bridge-celery-worker
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: celery -A sacco_bridge worker -l info -Q celery,settlements,analytics,maintenance,notifications,payments --concurrency=2
     envVars:
@@ -124,7 +124,7 @@ services:
   - type: worker
     name: sacco-bridge-celery-beat
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: celery -A sacco_bridge beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     envVars:
