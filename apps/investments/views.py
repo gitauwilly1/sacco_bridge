@@ -567,8 +567,8 @@ class ConnectionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
         offer = Offer.objects.create(
             connection=connection,
             offered_by=request.user,
-            price_per_share=request.data['price_per_share'],
-            quantity=request.data.get('quantity', connection.liquidity_request.share_quantity),
+            price_per_share=Decimal(str(request.data['price_per_share'])),
+            quantity=Decimal(str(request.data.get('quantity', connection.liquidity_request.share_quantity))),
             message=request.data.get('message', ''),
         )
 
@@ -579,7 +579,7 @@ class ConnectionViewSet(SoftDeleteMixin, viewsets.ModelViewSet):
             'success': True,
             'data': OfferSerializer(offer).data,
             'message': _('Offer submitted.'),
-        })
+        }, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['post'], url_path='offers/(?P<offer_pk>[^/.]+)/accept')
     def accept_offer(self, request, pk=None, offer_pk=None):

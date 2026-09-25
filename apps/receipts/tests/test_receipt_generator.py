@@ -39,5 +39,5 @@ class TestReceiptPDFGenerator:
         )
 
         assert receipt is not None
-        assert hasattr(receipt, 'receipt_file')
+        assert hasattr(receipt, 'pdf_file')
         assert receipt.receipt_number.startswith("RCP-")

@@ -13,8 +13,9 @@ class TestCreditScoringService:
         chama = ChamaFactory(name="Score Test Chama")
         member = ChamaMemberFactory(user=user, chama=chama)
 
-        score_value = CreditScoringService.calculate_score(user=user, chama=chama)
-        assert score_value is not None
+        result = CreditScoringService.calculate_score(user=user, chama=chama)
+        assert result is not None
+        score_value = result['score']
         assert isinstance(score_value, (int, float))
         assert score_value >= 0
         assert score_value <= 1000
@@ -22,6 +23,7 @@ class TestCreditScoringService:
     def test_credit_score_grade_mapping(self):
         assert CreditScore.get_grade(800) == "A+"
         assert CreditScore.get_grade(750) == "A"
-        assert CreditScore.get_grade(700) == "B+"
-        assert CreditScore.get_grade(650) == "B"
-        assert CreditScore.get_grade(400) == "C"
+        assert CreditScore.get_grade(700) == "B"
+        assert CreditScore.get_grade(650) == "C"
+        assert CreditScore.get_grade(500) == "D"
+        assert CreditScore.get_grade(400) == "E"

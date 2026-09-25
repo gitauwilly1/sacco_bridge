@@ -2,8 +2,23 @@ import pytest
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from unittest.mock import patch
 
 from apps.core.tests.factories import UserFactory
+
+
+# ---------------------------------------------------------------------------
+# Module-level fixture: bypass reCAPTCHA for ALL tests in this file.
+# The service makes a live HTTP call to Google that always fails in CI/tests.
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def bypass_recaptcha():
+    """Patch ReCaptchaService.verify to always succeed during auth tests."""
+    with patch(
+        'apps.core.recaptcha.ReCaptchaService.verify',
+        return_value={'success': True, 'error': None, 'score': 1.0},
+    ):
+        yield
 
 
 @pytest.mark.django_db
@@ -72,7 +87,7 @@ class TestLogin:
         assert 'access_token' in response.data['data']
         # Refresh token is set as httpOnly cookie, not in response body
         assert 'refresh_token' in response.cookies
-        
+
     def test_login_wrong_password(self):
         response = self.client.post(self.login_url, {
             'email': 'logintest@test.com',
@@ -97,6 +112,7 @@ class TestLogin:
         assert response.data['data']['user']['email'] == 'logintest@test.com'
         # refresh_token should NOT be in body
         assert 'refresh_token' not in response.data['data']
+
 
 @pytest.mark.django_db
 class TestTokenManagement:

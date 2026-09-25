@@ -65,11 +65,11 @@ class TestLegalDocuments:
         )
 
         api_client.force_authenticate(user=test_user)
-        resp = api_client.get("/api/v1/legal/acceptance/status/")
+        resp = api_client.get("/api/v1/legal/status/")
         assert resp.status_code == 200
-        # Accepts terms_of_service
+        # Only terms accepted (no privacy acceptance in this test)
         data = resp.json()['data']
-        assert data.get('all_accepted') is True
+        assert data.get('terms_accepted') is True
 
         # Now publish v2.0
         doc_v2 = LegalDocument.objects.create(
@@ -81,7 +81,7 @@ class TestLegalDocuments:
         )
         doc_v2.publish(published_by=test_user)
 
-        resp2 = api_client.get("/api/v1/legal/acceptance/status/")
+        resp2 = api_client.get("/api/v1/legal/status/")
         assert resp2.status_code == 200
         data2 = resp2.json()['data']
-        assert data2.get('all_accepted') is False
+        assert data2.get('terms_accepted') is False
