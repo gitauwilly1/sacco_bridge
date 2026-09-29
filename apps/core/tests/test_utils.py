@@ -15,6 +15,10 @@ class TestMaskPhoneNumber:
         result = mask_phone_number('123')
         assert result == '123'
 
+    def test_returns_empty_string_unchanged(self):
+        result = mask_phone_number('')
+        assert result == ''
+
 
 class TestMaskEmail:
     def test_masks_standard_email(self):
