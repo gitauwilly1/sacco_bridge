@@ -126,12 +126,14 @@ WSGI_APPLICATION = 'sacco_bridge.wsgi.application'
 ASGI_APPLICATION = 'sacco_bridge.asgi.application'
 
 # Database configuration
+_db_url = env.db('DATABASE_URL')
 DATABASES = {
     'default': {
-        **env.db('DATABASE_URL'),
+        **_db_url,
         'CONN_MAX_AGE': 300,
         'CONN_HEALTH_CHECKS': True,
         'OPTIONS': {
+            **_db_url.get('OPTIONS', {}),  # keep ?sslmode=require etc. from the URL
             'connect_timeout': 10,
             'options': '-c statement_timeout=30000',
             'keepalives': 1,
