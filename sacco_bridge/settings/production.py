@@ -58,6 +58,7 @@ REST_FRAMEWORK['EXCEPTION_HANDLER'] = 'apps.core.exceptions.custom_exception_han
 # CORS - Production frontend domains
 CORS_ALLOWED_ORIGINS = [
     'https://app.saccobridge.co.ke',
+    'https://sacco-bridge.vercel.app',
     'https://sacco-bridge-frontend.pages.dev',
 ]
 CORS_ALLOW_CREDENTIALS = True
@@ -65,5 +66,6 @@ CORS_ALLOW_CREDENTIALS = True
 # CSRF trusted origins
 CSRF_TRUSTED_ORIGINS = [
     'https://app.saccobridge.co.ke',
+    'https://sacco-bridge.vercel.app',
     'https://sacco-bridge-frontend.pages.dev',
-]
+]

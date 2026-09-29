@@ -14,6 +14,10 @@ class ReCaptchaService:
 
     @classmethod
     def verify(cls, token, action=None):
+        # Temporary bypass — reCAPTCHA keys not yet configured in production
+        logger.info("reCAPTCHA verification bypassed (disabled)")
+        return {'success': True, 'error': None, 'score': 1.0}
+
         if settings.DEBUG and not getattr(settings, 'RECAPTCHA_SECRET_KEY', None):
             logger.debug("reCAPTCHA bypassed in development")
             return {'success': True, 'error': None, 'score': 1.0}

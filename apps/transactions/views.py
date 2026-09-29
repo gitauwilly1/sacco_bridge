@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 
 from django.utils import timezone
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, status, viewsets
@@ -567,7 +568,24 @@ class MyDisputesView(APIView):
     def get(self, request):
         disputes = Dispute.objects.filter(
             raised_by=request.user, is_deleted=False
-        ).select_related('settlement').order_by('-opened_at')
+        ).select_related('settlement')
+
+        search = request.query_params.get('search')
+        if search:
+            disputes = disputes.filter(
+                Q(description__icontains=search) |
+                Q(reason__icontains=search)
+            )
+
+        days = request.query_params.get('days')
+        if days:
+            try:
+                cutoff = timezone.now() - timezone.timedelta(days=int(days))
+                disputes = disputes.filter(opened_at__gte=cutoff)
+            except (ValueError, TypeError):
+                pass
+
+        disputes = disputes.order_by('-opened_at')
 
         paginator = SmallPagination()
         page = paginator.paginate_queryset(disputes, request)
