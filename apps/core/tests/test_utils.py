@@ -36,3 +36,7 @@ class TestMaskEmail:
     def test_returns_empty_string_unchanged(self):
         result = mask_email('')
         assert result == ''
+
+    def test_keeps_domain_intact(self):
+        result = mask_email('john@example.com')
+        assert result.endswith('@example.com')
